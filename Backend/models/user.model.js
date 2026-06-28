@@ -3,6 +3,7 @@ const userschema=new mongoose.Schema({
      name:{type:String,required:true},
      email:{type:String,required:true,unique:true},
      password:{type:String,required:true},
+     socketId:{type:String},
      role:{type:String,required:true,enum:["user","admin"],default:"user"},
      isActive:{type:Boolean,default:true}
 },{timestamps:true});
