@@ -9,6 +9,7 @@ import Home from './pages/Home'
 import UserLogin from './pages/UserLogin'
 import UserSignup from './pages/UserSignup'
 import CaptainLogin from './pages/CaptainLogin'
+import CaptainHome from './pages/captainHome'
 import CaptainSignup from './pages/CaptainSignup'
 import UserProtectedWrapped from './pages/userProtectedWrapped'
 
@@ -27,6 +28,7 @@ function App() {
               <Home/>
             </UserProtectedWrapped>
           } />
+          <Route path='/captain-home' element={<CaptainHome/>} />
           <Route path="*" element={<h1>404 Not Found</h1>} />
           
     </Routes>

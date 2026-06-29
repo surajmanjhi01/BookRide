@@ -1,7 +1,10 @@
 import React, { useState } from "react";
 import { Link } from "react-router-dom";
-
+import {CaptainDataContext} from "../context/CaptainContext.jsx"
+import{useNavigate} from "react-router-dom"
+import axios from 'axios'
 const CaptainSignup = () => {
+  const navigate=useNavigate()
   const [captainData, setCaptainData] = useState({
     fullname: {
       firstname: "",
@@ -16,11 +19,12 @@ const CaptainSignup = () => {
       vehicleType: "",
     },
   });
+  const {captain,setCaptain}=React.useContext(CaptainDataContext)
 
-  const submitHandler = (e) => {
+  const submitHandler = async(e) => {
     e.preventDefault();
 
-    console.log(captainData);
+   
 
     setCaptainData({
       fullname: {
@@ -35,7 +39,15 @@ const CaptainSignup = () => {
         capacity: "",
         vehicleType: "",
       },
+    
     });
+    const response=await axios.post(`${import.meta.env.VITE_BASE_URL}/api/captains/register`, captainData);
+    if (response.status === 201) {
+      const data = response.data;
+      setCaptain(data.captain);
+      localStorage.setItem('token', data.token);
+      navigate('/captain-home');
+    }
   };
 
   return (

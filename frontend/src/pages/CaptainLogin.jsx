@@ -1,29 +1,50 @@
 import React, { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
+import { CaptainDataContext } from "../context/CaptainContext.jsx";
+import axios from "axios";
 
 const CaptainLogin = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-   const [captainData, setCaptainData] = useState({
-    email: "",
-    password: ""
-  });
-  const submitHandler = (e) => {
+
+  const navigate = useNavigate();
+  const { setCaptain } = React.useContext(CaptainDataContext);
+
+  const submitHandler = async (e) => {
     e.preventDefault();
-     setCaptainData({
-      email: email,
-      password: password
-    });
-    console.log(captainData);
-    setEmail("");
-    setPassword("");
+
+    try {
+      const response = await axios.post(
+        `${import.meta.env.VITE_BASE_URL}/api/captains/login`,
+        {
+          email,
+          password,
+        }
+      );
+
+      
+
+      // Save token
+      localStorage.setItem("token", response.data.token);
+
+      // Save captain data (adjust if your backend returns a different property)
+      setCaptain(response.data.data);
+
+      // Clear form
+      setEmail("");
+      setPassword("");
+
+      // Navigate after successful login
+      navigate("/captain-home");
+    } catch (err) {
+      console.log("Status:", err.response?.status);
+      console.log("Response:", err.response?.data);
+    }
   };
 
   return (
     <div className="h-screen flex flex-col justify-between bg-white">
-      {/* Top Section */}
       <div className="p-7">
-        {/* Uber Logo */}
         <img
           className="w-16 mb-10"
           src="https://upload.wikimedia.org/wikipedia/commons/c/cc/Uber_logo_2018.png"
@@ -31,9 +52,7 @@ const CaptainLogin = () => {
         />
 
         <form onSubmit={submitHandler}>
-          <h3 className="text-xl font-medium mb-2">
-            Captain's Email
-          </h3>
+          <h3 className="text-xl font-medium mb-2">Captain's Email</h3>
 
           <input
             required
@@ -44,9 +63,7 @@ const CaptainLogin = () => {
             className="bg-[#eeeeee] mb-7 rounded px-4 py-3 border w-full text-lg placeholder:text-gray-500 focus:outline-none"
           />
 
-          <h3 className="text-xl font-medium mb-2">
-            Enter Password
-          </h3>
+          <h3 className="text-xl font-medium mb-2">Enter Password</h3>
 
           <input
             required
@@ -66,17 +83,13 @@ const CaptainLogin = () => {
 
           <p className="text-center text-sm">
             Want to ride instead?{" "}
-            <Link
-              to="/login"
-              className="text-blue-600 font-medium"
-            >
+            <Link to="/login" className="text-blue-600 font-medium">
               User Login
             </Link>
           </p>
         </form>
       </div>
 
-      {/* Bottom Section */}
       <div className="p-7">
         <Link
           to="/captain-signup"

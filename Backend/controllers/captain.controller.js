@@ -5,15 +5,14 @@ const generateToken = require("../utils/generateToken");
 exports.registerCaptain = async (req, res) => {
     try {
         const {
-            firstname,
-            lastname,
-            email,
-            password,
-            color,
-            plate,
-            capacity,
-            vehicleType
-        } = req.body;
+    fullname,
+    email,
+    password,
+    vehicle
+} = req.body;
+
+const { firstname, lastname } = fullname;
+const { color, plate, capacity, vehicleType } = vehicle;
 
         const existingUser = await captainModel.findOne({ email });
 
