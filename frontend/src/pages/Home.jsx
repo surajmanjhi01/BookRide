@@ -10,42 +10,54 @@ const Home = () => {
 
   const panelRef = useRef(null);
   const panelCloseRef = useRef(null);
+  const lineRef = useRef(null);
 
   const submitHandler = (e) => {
     e.preventDefault();
   };
 
- useGSAP(
-  () => {
-    if (panelOpen) {
-      gsap.to(panelRef.current, {
-        height: "70%",
-        opacity: 1,
-        duration: 0.3,
-      
-      });
-      gsap.to(panelCloseRef.current,{
-        opacity:1,
-      })
-    } else {
-      gsap.to(panelRef.current, {
-        height: "0%",
-        opacity: 0,
-        duration: 0.3,
-      });
-      gsap.to(panelCloseRef.current,{
-        opacity:0,
-      })
-    }
-  },
-  { dependencies: [panelOpen] }
-);
+useGSAP(() => {
+  if (panelOpen) {
+    gsap.to(panelRef.current, {
+      height: "70%",
+      opacity: 1,
+      duration: 0.3,
+      ease: "power2.out",
+    });
+    gsap.to(panelCloseRef.current, {
+      opacity: 1,
+      duration: 0.3,
+    });
 
+    gsap.to(lineRef.current, {
+      y:-650,
+      duration:0.3,
+      ease:"power2.out",
+    });
+  } else {
+    gsap.to(panelRef.current, {
+      height: "0%",
+      opacity: 0,
+      duration: 0.3,
+      ease: "power2.in",
+    });
+
+    gsap.to(panelCloseRef.current, {
+      opacity: 0,
+      duration: 0.3,
+    });
+    gsap.to(lineRef.current, {
+      y:0,
+      duration:0.3,
+      ease:"power2.in",
+    });
+  }
+}, [panelOpen]);
   return (
     <div className="h-screen relative">
       {/* Uber Logo */}
       <img
-        className="w-16 absolute left-5 top-5 z-10"
+        className="w-16 absolute right-5 top-5 z-10"
         src="https://upload.wikimedia.org/wikipedia/commons/c/cc/Uber_logo_2018.png"
         alt="Uber Logo"
       />
@@ -61,11 +73,11 @@ const Home = () => {
 
       {/* Bottom Sheet */}
       <div className="flex flex-col justify-end h-screen absolute top-0 w-full">
-        <div className="h-[30%] p-6 bg-white relative">
+        <div className="h-[30%] p-6 bg-white ">
           <h5 ref={panelCloseRef} className="text-2xl font-semibold">Find a trip</h5>
 
           <form onSubmit={submitHandler}>
-            <div className="absolute opacity-0 h-16 w-1 top-[38%] left-10 bg-gray-900 rounded-full"></div>
+            <div ref={lineRef} className="line absolute h-18  w-1  top-[80%] left-11 bg-black"></div>
 
             <input
               onClick={() => setPanelOpen(true)}
@@ -88,13 +100,35 @@ const Home = () => {
         </div>
 
         {/* Expandable Panel */}
-        <div ref={panelRef} className="h-0 not-first: bg-white-500 overflow-hidden ">
-               <LocationSearchPanel />
+       <div
+  ref={panelRef}
+  
+  className="h-0 bg-white overflow-hidden"
+>  <LocationSearchPanel />
+              
        
       </div>
+      <button
+  ref={panelCloseRef}
+  onClick={() => setPanelOpen(false)}
+  className="absolute right-5 top-5 z-20 flex items-center gap-2 bg-white rounded-full px-3 py-2 shadow-md opacity-0"
+>
+ <i className="ri-arrow-down-line"></i>
+  <span className="font-medium">Back</span>
+</button>
+        </div>
+        <div classname='fixed z-10 bottom-0 w-full'>
+          <div>
+            <img src="https://static.vecteezy.com/system/resources/thumbnails/046/836/811/small/side-view-white-car-png.png" alt="" />
+            <div>
+              <h4>
+                UberGO 
+              </h4>
+            </div>
+          </div>
         </div>
       </div>
   );
 };
 
-export default Home; 
+export default Home;   
