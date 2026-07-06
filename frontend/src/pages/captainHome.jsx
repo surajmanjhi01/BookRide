@@ -1,7 +1,7 @@
 import React from 'react'
 const CaptainHome = () => {
   return (
-    <div> Captian Home Page</div>
+    <div> Captian  Home Page</div>
 
   )
 }
