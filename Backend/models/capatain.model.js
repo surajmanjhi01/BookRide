@@ -1,78 +1,89 @@
-const mongoose = require('mongoose');
+const mongoose = require("mongoose");
 
-const captainSchema = new mongoose.Schema({
+const captainSchema = new mongoose.Schema(
+  {
     fullname: {
-        firstname: {
-            type: String,
-            required: true,
-            minlength: [3, "firstname must be at least 3 characters long"]
-        },
-        lastname: {
-            type: String,
-            required: true,
-            minlength: [3, "lastname must be at least 3 characters long"]
-        }
+      firstname: {
+        type: String,
+        required: true,
+        minlength: [3, "Firstname must be at least 3 characters long"],
+      },
+      lastname: {
+        type: String,
+        required: true,
+        minlength: [3, "Lastname must be at least 3 characters long"],
+      },
     },
 
     email: {
-        type: String,
-        required: true,
-        unique: true,
-        lowercase: true
+      type: String,
+      required: true,
+      unique: true,
+      lowercase: true,
     },
 
     password: {
-        type: String,
-        required: true,
-        select: false
+      type: String,
+      required: true,
+      select: false,
     },
 
     socketId: {
-        type: String
+      type: String,
+      default: null,
     },
 
     status: {
-        type: String,
-        enum: ['active', 'inactive'],
-        default: 'inactive'
+      type: String,
+      enum: ["active", "inactive"],
+      default: "inactive",
     },
 
     vehicle: {
-        color: {
-            type: String,
-            required: true,
-            minlength: [3, "color must be at least 3 characters long"]
-        },
+      color: {
+        type: String,
+        required: true,
+        minlength: [3, "Color must be at least 3 characters long"],
+      },
 
-        plate: {
-            type: String,
-            required: true,
-            minlength: [3, "plate must be at least 3 characters long"]
-        },
+      plate: {
+        type: String,
+        required: true,
+        minlength: [3, "Plate must be at least 3 characters long"],
+      },
 
-        capacity: {
-            type: Number,
-            required: true,
-            min: [1, "capacity must be at least 1"]
-        },
+      capacity: {
+        type: Number,
+        required: true,
+        min: [1, "Capacity must be at least 1"],
+      },
 
-        vehicleType: {
-            type: String,
-            required: true,
-            enum: ['car', 'bike', 'van']
-        }
+      vehicleType: {
+        type: String,
+        required: true,
+        enum: ["car", "bike", "van"],
+      },
     },
 
+    // GeoJSON Location
     location: {
-        lat: {
-            type: Number
-        },
+      type: {
+        type: String,
+        enum: ["Point"],
+        default: "Point",
+      },
+      coordinates: {
+        type: [Number], // [longitude, latitude]
+        default: [0, 0],
+      },
+    },
+  },
+  {
+    timestamps: true,
+  }
+);
 
-        lng: {
-            type: Number
-        }
-    }
-});
-
+// GeoSpatial Index
+captainSchema.index({ location: "2dsphere" });
 
 module.exports = mongoose.model("Captain", captainSchema);
