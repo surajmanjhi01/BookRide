@@ -5,9 +5,14 @@ const mapController=require('../controllers/maps.controller');
 const authMiddleware=require('../middlewares/auth.middleware');
 
 router.get('/coordinates',authMiddleware.authUser,mapController.getCoordinates);
-router.get(
+router.post(
     "/distance-time",
-    // authMiddleware.authUser,
+     authMiddleware.authUser,
     mapController.getDistanceAndTime
+);
+router.post(
+    "/fare",
+    //  authMiddleware.authUser,
+    mapController.getFare
 );
 module.exports=router;

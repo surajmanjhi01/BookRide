@@ -1,6 +1,7 @@
 const captainModel = require("../models/capatain.model");
 const bcrypt = require("bcrypt");
 const generateToken = require("../utils/generateToken");
+const captainService = require("../services/captain.services");
 
 exports.registerCaptain = async (req, res) => {
     try {
@@ -108,7 +109,7 @@ exports.loginCaptain = async (req, res) => {
     }
 };
 exports.getCaptainProfile = async (req, res,next) => {
-  res.status(200).json(req.user);
+  res.status(200).json(req.captain);
 };
 exports.logoutCaptain = async (req, res) => {
   try {
@@ -124,4 +125,43 @@ exports.logoutCaptain = async (req, res) => {
       message: error.message
     });
   }
+};
+
+exports.updateLocation = async (req, res) => {
+
+    try {
+
+        const { latitude, longitude } = req.body;
+
+        if (
+            latitude === undefined ||
+            longitude === undefined
+        ) {
+            return res.status(400).json({
+                success: false,
+                message: "Latitude and longitude are required"
+            });
+        }
+
+        const captain =
+            await captainService.updateLocation(
+                req.captain._id,
+                latitude,
+                longitude
+            );
+
+        res.status(200).json({
+            success: true,
+            data: captain
+        });
+
+    } catch (error) {
+
+        res.status(500).json({
+            success: false,
+            message: error.message
+        });
+
+    }
+
 };

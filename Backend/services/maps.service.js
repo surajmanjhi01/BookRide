@@ -30,25 +30,16 @@ exports.getCoordinates = async (address) => {
     }
 };
 
-exports.getDistanceAndTime = async (origin, destination) => {
+const mapsService = require("../services/maps.service");
+
+exports.getDistanceAndTime = async (pickup, destination) => {
     try {
-
-        // Convert addresses to coordinates
-        const originCoordinates = await exports.getCoordinates(origin);
-        const destinationCoordinates = await exports.getCoordinates(destination);
-
         const response = await axios.post(
             "https://api.openrouteservice.org/v2/directions/driving-car",
             {
                 coordinates: [
-                    [
-                        originCoordinates.longitude,
-                        originCoordinates.latitude
-                    ],
-                    [
-                        destinationCoordinates.longitude,
-                        destinationCoordinates.latitude
-                    ]
+                    [pickup.lng, pickup.lat],
+                    [destination.lng, destination.lat]
                 ]
             },
             {
@@ -62,19 +53,28 @@ exports.getDistanceAndTime = async (origin, destination) => {
         const summary = response.data.routes[0].summary;
 
         return {
-            distance: Number((summary.distance / 1000).toFixed(2)), // km
-            duration: Number((summary.duration / 60).toFixed(2))    // minutes
+            distance: Number((summary.distance / 1000).toFixed(2)),
+            duration: Number((summary.duration / 60).toFixed(2))
         };
 
-   } catch (error) {
-  console.error("ORS error:", {
-    url: error.config?.url,
-    status: error.response?.status,
-    data: error.response?.data
-  });
+    } catch (error) {
+        throw new Error(
+            error.response?.data?.error?.message || error.message
+        );
+    }
+};
+const fareService = require("../services/fare.service");
 
-  throw new Error(
-    error.response?.data?.error?.message || error.message
-  );
-}
+exports.getFare=async(pickup,destination)=>{
+    const route=await exports.getDistanceAndTime(pickup,destination);
+    const fare=fareService.calculateFare({
+        distance:route.distance,
+        duration:route.duration
+    });
+    console.log("Fare calculated:", fare);
+    return{
+        distance:route.distance,
+        duration:route.duration,
+        fare
+    };    
 };
