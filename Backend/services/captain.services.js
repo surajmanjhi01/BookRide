@@ -22,7 +22,6 @@ exports.updateLocation = async (
         }
     );
 };
-
 exports.getCaptainsInRadius = async (
     longitude,
     latitude,
