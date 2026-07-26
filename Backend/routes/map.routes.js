@@ -15,4 +15,9 @@ router.post(
     //  authMiddleware.authUser,
     mapController.getFare
 );
+router.get(
+    "/search",
+    // authMiddleware.authUser,
+    mapController.searchPlaces
+);
 module.exports=router;
