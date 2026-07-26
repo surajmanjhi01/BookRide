@@ -1,134 +1,150 @@
 import React, { useState, useRef } from "react";
+import LocationSearchPanel from "../components/LocationSearchPanel";
+import api from "../services/axios";
+
 import gsap from "gsap";
 import { useGSAP } from "@gsap/react";
-import LocationSearchPanel from "../components/LocationSearchPanel";
+
+gsap.registerPlugin(useGSAP);
 
 const Home = () => {
   const [pickup, setPickup] = useState("");
   const [destination, setDestination] = useState("");
   const [panelOpen, setPanelOpen] = useState(false);
-
+  const [pickupSuggestions, setPickupSuggestions] = useState([]);
+  const [destinationSuggestions, setDestinationSuggestions] = useState([]);
+  const [pickupCoordinates, setPickupCoordinates]=useState(null);
+  const[destinationCoordinates, setDestinationCoordinates]=useState(null);
+  const[activeField,setActiveField]=useState("");
   const panelRef = useRef(null);
-  const panelCloseRef = useRef(null);
-  const lineRef = useRef(null);
+  const bottomSheetRef = useRef(null);
+    
+  useGSAP(() => {
+    if (panelOpen) {
+      gsap.to(panelRef.current, {
+        y: 0,
+        duration: 0.4,
+        ease: "power2.out",
+      });
 
-  const submitHandler = (e) => {
-    e.preventDefault();
+      gsap.to(bottomSheetRef.current, {
+        height: "35vh",
+        duration: 0.4,
+      });
+    } else {
+      gsap.to(panelRef.current, {
+        y: "100%",
+        duration: 0.4,
+        ease: "power2.in",
+      });
+
+      gsap.to(bottomSheetRef.current, {
+        height: "28vh",
+        duration: 0.4,
+      });
+    }
+  }, [panelOpen]);
+
+  // Search Pickup Locations
+  const searchPickup = async (query) => {
+    if (!query) {
+      setPickupSuggestions([]);
+      return;
+    }
+
+    try {
+      const token = localStorage.getItem("token");
+
+      const response = await api.get(`/api/maps/search?query=${query}`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      setPickupSuggestions(response.data.data);
+      console.log("Pickup Suggestions:", response.data.data);
+    } catch (error) {
+      console.error(error);
+    }
   };
+  const handleLocationSelect=(place)=>{
+    if(activeField=="pickup"){
+      setPickup(place.address);
 
-useGSAP(() => {
-  if (panelOpen) {
-    gsap.to(panelRef.current, {
-      height: "70%",
-      opacity: 1,
-      duration: 0.3,
-      ease: "power2.out",
-    });
-    gsap.to(panelCloseRef.current, {
-      opacity: 1,
-      duration: 0.3,
-    });
+      setPickupCoordinates({
+        lat:place.lattitude,
+        lng:place.longitude
+      });
+    }else{
+      setDestination(place.address);
+      setDestinationCoordinates({
+        lat:place.lattitude,
+        lng:place.longitude
+      });
+    }
+    setPanelOpen(false);
+  }   
+  
 
-    gsap.to(lineRef.current, {
-      y:-650,
-      duration:0.3,
-      ease:"power2.out",
-    });
-  } else {
-    gsap.to(panelRef.current, {
-      height: "0%",
-      opacity: 0,
-      duration: 0.3,
-      ease: "power2.in",
-    });
-
-    gsap.to(panelCloseRef.current, {
-      opacity: 0,
-      duration: 0.3,
-    });
-    gsap.to(lineRef.current, {
-      y:0,
-      duration:0.3,
-      ease:"power2.in",
-    });
-  }
-}, [panelOpen]);
   return (
-    <div className="h-screen relative">
-      {/* Uber Logo */}
-      <img
-        className="w-16 absolute right-5 top-5 z-10"
-        src="https://upload.wikimedia.org/wikipedia/commons/c/cc/Uber_logo_2018.png"
-        alt="Uber Logo"
-      />
+    <div className="h-screen w-full relative overflow-hidden bg-gray-100">
+      {/* Map Placeholder */}
+      <div className="h-full w-full bg-gray-300 flex items-center justify-center">
+        <h1 className="text-2xl font-semibold text-gray-600">
+          Map Placeholder
+        </h1>
+      </div>
 
-      {/* Background Image */}
-      <div className="h-screen w-screen">
-        <img
-          className="h-full w-full object-cover"
-          src="https://miro.medium.com/v2/resize:fit:1400/0*gwMx05pqII5hbfmX.gif"
-          alt=""
-        />
+      {/* Search Panel */}
+      <div
+        ref={panelRef}
+        className="absolute bottom-0 left-0 w-full h-[45vh] bg-white rounded-t-3xl shadow-lg translate-y-full z-20 overflow-y-auto"
+      >
+        <LocationSearchPanel locations={pickupSuggestions} />
       </div>
 
       {/* Bottom Sheet */}
-      <div className="flex flex-col justify-end h-screen absolute top-0 w-full">
-        <div className="h-[30%] p-6 bg-white ">
-          <h5 ref={panelCloseRef} className="text-2xl font-semibold">Find a trip</h5>
+      <div
+        ref={bottomSheetRef}
+        className="absolute bottom-0 left-0 w-full h-[28vh] bg-white rounded-t-3xl shadow-xl p-5 z-30"
+      >
+        <h2 className="text-2xl font-bold mb-5">Where to?</h2>
 
-          <form onSubmit={submitHandler}>
-            <div ref={lineRef} className="line absolute h-18  w-1  top-[80%] left-11 bg-black"></div>
+        {/* Vertical Line */}
+        <div className="absolute left-8 top-[96px] w-1 h-16 bg-gray-400 rounded-full"></div>
 
-            <input
-              onClick={() => setPanelOpen(true)}
-              value={pickup}
-              onChange={(e) => setPickup(e.target.value)}
-              className="bg-gray-100 px-12 py-2 text-base rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 w-full mt-5"
-              type="text"
-              placeholder="Enter pickup location"
-            />
+        {/* Pickup */}
+        <input
+          type="text"
+          placeholder="Enter Pickup Location"
+          value={pickup}
+          onChange={(e) => {
+            setPickup(e.target.value);
+            searchPickup(e.target.value);
+          }}
+          onFocus={() => {
+            setPanelOpen(true);
+            setActiveField("pickup");
+          }}
+          className="w-full border rounded-lg px-4 py-3 mb-3 outline-none"
+        />
 
-            <input
-              onClick={() => setPanelOpen(true)}
-              value={destination}
-              onChange={(e) => setDestination(e.target.value)}
-              className="bg-gray-100 px-12 py-2 text-base rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 w-full mt-5"
-              type="text"
-              placeholder="Enter your destination"
-            />
-          </form>
-        </div>
-
-        {/* Expandable Panel */}
-       <div
-  ref={panelRef}
-  
-  className="h-0 bg-white overflow-hidden"
->  <LocationSearchPanel />
-              
-       
+        {/* Destination */}
+        <input
+          type="text"
+          placeholder="Enter Destination"
+          value={destination}
+          onChange={(e) => {
+            setDestination(e.target.value);
+          }}
+          onFocus={() => {
+            setPanelOpen(true);
+            setActiveField("destination");
+          }}
+          className="w-full border rounded-lg px-4 py-3 outline-none"
+        />
       </div>
-      <button
-  ref={panelCloseRef}
-  onClick={() => setPanelOpen(false)}
-  className="absolute right-5 top-5 z-20 flex items-center gap-2 bg-white rounded-full px-3 py-2 shadow-md opacity-0"
->
- <i className="ri-arrow-down-line"></i>
-  <span className="font-medium">Back</span>
-</button>
-        </div>
-        <div classname='fixed z-10 bottom-0 w-full'>
-          <div>
-            <img src="https://static.vecteezy.com/system/resources/thumbnails/046/836/811/small/side-view-white-car-png.png" alt="" />
-            <div>
-              <h4>
-                UberGO 
-              </h4>
-            </div>
-          </div>
-        </div>
-      </div>
+    </div>
   );
 };
 
-export default Home;   
+export default Home;

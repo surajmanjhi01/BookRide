@@ -78,3 +78,22 @@ exports.getFare=async(pickup,destination)=>{
         fare
     };    
 };
+
+exports.searchPlaces=async(query)=>{
+    const response= await axios.get(
+        "https://api.openrouteservice.org/geocode/search",
+        {
+            params:{
+                api_key:process.env.ORS_API_KEY,
+                text:query
+            }
+        }
+    );
+
+    return response.data.features.map(place=>({
+        name:place.properties.name||place.properties.label,
+        address:place.properties.label,
+        latitude:place.geometry.coordinates[1],
+        longitude:place.geometry.coordinates[0]
+    }));
+};
