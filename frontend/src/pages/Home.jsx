@@ -1,7 +1,7 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef ,useEffect } from "react";
 import LocationSearchPanel from "../components/LocationSearchPanel";
 import api from "../services/axios";
-
+import MapView from "../components/MapView";
 import gsap from "gsap";
 import { useGSAP } from "@gsap/react";
 
@@ -13,12 +13,15 @@ const Home = () => {
   const [panelOpen, setPanelOpen] = useState(false);
   const [pickupSuggestions, setPickupSuggestions] = useState([]);
   const [destinationSuggestions, setDestinationSuggestions] = useState([]);
-  const [pickupCoordinates, setPickupCoordinates]=useState(null);
-  const[destinationCoordinates, setDestinationCoordinates]=useState(null);
-  const[activeField,setActiveField]=useState("");
+  const [pickupCoordinates, setPickupCoordinates] = useState(null);
+  const [destinationCoordinates, setDestinationCoordinates] = useState(null);
+  const [activeField, setActiveField] = useState("");
+  const [distance, setDistance] = useState(null);
+  const [duration, setDuration] = useState(null);
+  const [fare, setFare] = useState(null);
   const panelRef = useRef(null);
   const bottomSheetRef = useRef(null);
-    
+
   useGSAP(() => {
     if (panelOpen) {
       gsap.to(panelRef.current, {
@@ -53,7 +56,7 @@ const Home = () => {
     }
 
     try {
-      const token = localStorage.getItem("token");
+      const token = localStorage.getItem("user");
 
       const response = await api.get(`/api/maps/search?query=${query}`, {
         headers: {
@@ -66,40 +69,117 @@ const Home = () => {
       console.error(error);
     }
   };
-  const handleLocationSelect=(place)=>{
-    if(activeField=="pickup"){
+  const searchDestination = async (query) => {
+    if (!query) {
+      setDestinationSuggestions([]);
+      return;
+    }
+
+    try {
+      const token = localStorage.getItem("user");
+
+      const response = await api.get(`/api/maps/search?query=${query}`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      setDestinationSuggestions(response.data.data);
+
+      console.log("Destination Suggestions:", response.data.data);
+    } catch (error) {
+      console.error(error);
+    }
+  };
+  const handleLocationSelect = (place) => {
+    console.log("Selected Place:", place); 
+    if (activeField === "pickup") {
       setPickup(place.address);
 
       setPickupCoordinates({
-        lat:place.lattitude,
-        lng:place.longitude
+        lat: place.latitude,
+        lng: place.longitude,
       });
-    }else{
+    } else {
       setDestination(place.address);
+
       setDestinationCoordinates({
-        lat:place.lattitude,
-        lng:place.longitude
+        lat: place.latitude,
+        lng: place.longitude,
       });
     }
-    setPanelOpen(false);
-  }   
-  
 
+    setPanelOpen(false);
+  };
+  const getDistanceTime = async () => {
+    try {
+      const response = await api.post(
+        "/api/maps/distance-time",
+        { pickup: pickupCoordinates, destination: destinationCoordinates },
+        {
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem("user")}`,
+          },
+        }
+      );
+
+      console.log("Distance Response:", response.data);
+      setDistance(response.data.data.distance);
+      setDuration(response.data.data.duration);
+      getFare();
+    } catch (error) {
+      console.error("Distance request failed:", error.response?.data || error);
+    }
+  };
+  const getFare = async () => {
+    try {
+      const response = await api.post(
+        "/api/maps/fare",
+        { pickup: pickupCoordinates, destination: destinationCoordinates },
+        {
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem("user")}`,
+          },
+        }
+      );
+
+      console.log("Fare Response:", response.data);
+      setFare(response.data.data.fare);
+    } catch (error) {
+      console.error("Fare request failed:", error.response?.data || error);
+    }
+  };
+  
+  useEffect(() => {
+    if (pickupCoordinates && destinationCoordinates) {
+      getDistanceTime();
+    }
+  }, [pickupCoordinates, destinationCoordinates]);
   return (
     <div className="h-screen w-full relative overflow-hidden bg-gray-100">
       {/* Map Placeholder */}
-      <div className="h-full w-full bg-gray-300 flex items-center justify-center">
-        <h1 className="text-2xl font-semibold text-gray-600">
-          Map Placeholder
-        </h1>
-      </div>
+      <div className="h-full w-full">
+
+  <MapView
+    pickupCoordinates={pickupCoordinates}
+    destinationCoordinates={destinationCoordinates}
+  />
+
+</div>
 
       {/* Search Panel */}
       <div
         ref={panelRef}
         className="absolute bottom-0 left-0 w-full h-[45vh] bg-white rounded-t-3xl shadow-lg translate-y-full z-20 overflow-y-auto"
       >
-        <LocationSearchPanel locations={pickupSuggestions} />
+        <LocationSearchPanel
+          locations={
+            activeField === "pickup"
+              ? pickupSuggestions
+              : destinationSuggestions
+          }
+          onSelectLocation={handleLocationSelect}
+        />
       </div>
 
       {/* Bottom Sheet */}
@@ -110,7 +190,7 @@ const Home = () => {
         <h2 className="text-2xl font-bold mb-5">Where to?</h2>
 
         {/* Vertical Line */}
-        <div className="absolute left-8 top-[96px] w-1 h-16 bg-gray-400 rounded-full"></div>
+        <div className="absolute left-8 top-[96px] w-1 h-16 bg-gray-800 rounded-full"></div>
 
         {/* Pickup */}
         <input
@@ -135,6 +215,7 @@ const Home = () => {
           value={destination}
           onChange={(e) => {
             setDestination(e.target.value);
+            searchDestination(e.target.value);
           }}
           onFocus={() => {
             setPanelOpen(true);
