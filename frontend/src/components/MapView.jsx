@@ -14,7 +14,7 @@ const openStreetMapStyle = {
   layers: [
     {
       id: "openstreetmap",
-      type: "raster",
+      type: "raster" ,
       source: "openstreetmap",
     },
   ],
