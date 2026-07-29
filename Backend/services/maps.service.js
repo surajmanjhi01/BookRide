@@ -54,7 +54,8 @@ exports.getDistanceAndTime = async (pickup, destination) => {
 
         return {
             distance: Number((summary.distance / 1000).toFixed(2)),
-            duration: Number((summary.duration / 60).toFixed(2))
+            duration: Number((summary.duration / 60).toFixed(2)),
+            geometry: response.data.routes[0].geometry
         };
 
     } catch (error) {

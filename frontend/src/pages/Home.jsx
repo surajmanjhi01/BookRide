@@ -3,7 +3,9 @@ import LocationSearchPanel from "../components/LocationSearchPanel";
 import api from "../services/axios";
 import MapView from "../components/MapView";
 import gsap from "gsap";
+import polyline from "@mapbox/polyline";
 import { useGSAP } from "@gsap/react";
+
 
 gsap.registerPlugin(useGSAP);
 
@@ -18,6 +20,7 @@ const Home = () => {
   const [activeField, setActiveField] = useState("");
   const [distance, setDistance] = useState(null);
   const [duration, setDuration] = useState(null);
+  const[routeCoordinates,setRouteCoordinates]=useState([]);
   const [fare, setFare] = useState(null);
   const panelRef = useRef(null);
   const bottomSheetRef = useRef(null);
@@ -111,26 +114,45 @@ const Home = () => {
 
     setPanelOpen(false);
   };
-  const getDistanceTime = async () => {
-    try {
-      const response = await api.post(
-        "/api/maps/distance-time",
-        { pickup: pickupCoordinates, destination: destinationCoordinates },
-        {
-          headers: {
-            Authorization: `Bearer ${localStorage.getItem("user")}`,
-          },
-        }
-      );
+ const getDistanceTime = async () => {
+  try {
+    const response = await api.post(
+      "/api/maps/distance-time",
+      {
+        pickup: pickupCoordinates,
+        destination: destinationCoordinates,
+      },
+      {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem("user")}`,
+        },
+      }
+    );
 
-      console.log("Distance Response:", response.data);
-      setDistance(response.data.data.distance);
-      setDuration(response.data.data.duration);
-      getFare();
-    } catch (error) {
-      console.error("Distance request failed:", error.response?.data || error);
-    }
-  };
+    console.log(response.data.data);
+
+    const data = response.data.data;
+
+    setDistance(data.distance);
+    setDuration(data.duration);
+
+    const decoded = polyline.decode(data.geometry);
+    console.log("Decoded:", decoded);
+
+    const coordinates = decoded.map(([lat, lng]) => [
+      lng,
+      lat,
+    ]);
+    console.log("Coordinates:", coordinates);
+
+    setRouteCoordinates(coordinates);
+
+    getFare();
+
+  } catch (error) {
+    console.error("Distance request failed:", error.response?.data || error);
+  }
+};
   const getFare = async () => {
     try {
       const response = await api.post(
@@ -160,10 +182,13 @@ const Home = () => {
       {/* Map Placeholder */}
       <div className="h-full w-full">
 
-  <MapView
+ <MapView
     pickupCoordinates={pickupCoordinates}
     destinationCoordinates={destinationCoordinates}
-  />
+    routeCoordinates={routeCoordinates}
+    setPickupCoordinates={setPickupCoordinates}
+    setDestinationCoordinates={setDestinationCoordinates}
+/>
 
 </div>
 
