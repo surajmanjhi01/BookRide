@@ -5,6 +5,7 @@ import MapView from "../components/MapView";
 import gsap from "gsap";
 import polyline from "@mapbox/polyline";
 import { useGSAP } from "@gsap/react";
+import VechilePanel from "../components/VechilePanel";
 
 
 gsap.registerPlugin(useGSAP);
@@ -22,6 +23,7 @@ const Home = () => {
   const [duration, setDuration] = useState(null);
   const[routeCoordinates,setRouteCoordinates]=useState([]);
   const [fare, setFare] = useState(null);
+  const[selectedVehicle, setSelectedVehicle] = useState(null);
   const panelRef = useRef(null);
   const bottomSheetRef = useRef(null);
 
@@ -208,48 +210,58 @@ const Home = () => {
       </div>
 
       {/* Bottom Sheet */}
-      <div
-        ref={bottomSheetRef}
-        className="absolute bottom-0 left-0 w-full h-[28vh] bg-white rounded-t-3xl shadow-xl p-5 z-30"
-      >
-        <h2 className="text-2xl font-bold mb-5">Where to?</h2>
+     <div
+  ref={bottomSheetRef}
+  className="absolute bottom-0 left-0 w-full bg-white rounded-t-3xl shadow-xl p-5 z-30"
+>
+  {fare ? (
+    <VehiclePanel
+      fare={fare}
+      selectedVehicle={selectedVehicle}
+      setSelectedVehicle={setSelectedVehicle}
+    />
+  ) : (
+    <>
+      <h2 className="text-2xl font-bold mb-5">
+        Where to?
+      </h2>
 
-        {/* Vertical Line */}
-        <div className="absolute left-8 top-[96px] w-1 h-16 bg-gray-800 rounded-full"></div>
+      <div className="absolute left-8 top-[96px] w-1 h-16 bg-gray-800 rounded-full"></div>
 
-        {/* Pickup */}
-        <input
-          type="text"
-          placeholder="Enter Pickup Location"
-          value={pickup}
-          onChange={(e) => {
-            setPickup(e.target.value);
-            searchPickup(e.target.value);
-          }}
-          onFocus={() => {
-            setPanelOpen(true);
-            setActiveField("pickup");
-          }}
-          className="w-full border rounded-lg px-4 py-3 mb-3 outline-none"
-        />
+      <input
+        type="text"
+        placeholder="Enter Pickup Location"
+        value={pickup}
+        onChange={(e) => {
+          setPickup(e.target.value);
+          searchPickup(e.target.value);
+        }}
+        onFocus={() => {
+          setPanelOpen(true);
+          setActiveField("pickup");
+        }}
+        className="w-full border rounded-lg px-4 py-3 mb-3 outline-none"
+      />
 
-        {/* Destination */}
-        <input
-          type="text"
-          placeholder="Enter Destination"
-          value={destination}
-          onChange={(e) => {
-            setDestination(e.target.value);
-            searchDestination(e.target.value);
-          }}
-          onFocus={() => {
-            setPanelOpen(true);
-            setActiveField("destination");
-          }}
-          className="w-full border rounded-lg px-4 py-3 outline-none"
-        />
-      </div>
-    </div>
+      <input
+        type="text"
+        placeholder="Enter Destination"
+        value={destination}
+        onChange={(e) => {
+          setDestination(e.target.value);
+          searchDestination(e.target.value);
+        }}
+        onFocus={() => {
+          setPanelOpen(true);
+          setActiveField("destination");
+        }}
+        className="w-full border rounded-lg px-4 py-3 outline-none"
+      />
+    </>
+  )}
+</div>
+           
+    </div> 
   );
 };
 
