@@ -5,7 +5,7 @@ import MapView from "../components/MapView";
 import gsap from "gsap";
 import polyline from "@mapbox/polyline";
 import { useGSAP } from "@gsap/react";
-import VechilePanel from "../components/VechilePanel";
+import VechilePanel from "../components/VehiclePanel";
 
 
 gsap.registerPlugin(useGSAP);
@@ -27,31 +27,37 @@ const Home = () => {
   const panelRef = useRef(null);
   const bottomSheetRef = useRef(null);
 
-  useGSAP(() => {
-    if (panelOpen) {
-      gsap.to(panelRef.current, {
-        y: 0,
-        duration: 0.4,
-        ease: "power2.out",
-      });
+useGSAP(() => {
+  if (panelOpen) {
+    // Location suggestions panel
+    gsap.to(panelRef.current, {
+      y: 0,
+      duration: 0.4,
+      ease: "power2.out",
+    });
 
-      gsap.to(bottomSheetRef.current, {
-        height: "35vh",
-        duration: 0.4,
-      });
-    } else {
-      gsap.to(panelRef.current, {
-        y: "100%",
-        duration: 0.4,
-        ease: "power2.in",
-      });
+    // Search panel open
+    gsap.to(bottomSheetRef.current, {
+      height: "40vh",
+      duration: 0.4,
+    });
 
-      gsap.to(bottomSheetRef.current, {
-        height: "28vh",
-        duration: 0.4,
-      });
-    }
-  }, [panelOpen]);
+  } else {
+    // Hide location suggestions
+    gsap.to(panelRef.current, {
+      y: "100%",
+      duration: 0.4,
+      ease: "power2.in",
+    });
+
+    // Change height depending on whether fare exists
+    gsap.to(bottomSheetRef.current, {
+      height: fare ? "55vh" : "28vh",
+      duration: 0.4,
+      ease: "power2.out",
+    });
+  }
+}, [panelOpen, fare]);
 
   // Search Pickup Locations
   const searchPickup = async (query) => {
@@ -62,7 +68,6 @@ const Home = () => {
 
     try {
       const token = localStorage.getItem("user");
-
       const response = await api.get(`/api/maps/search?query=${query}`, {
         headers: {
           Authorization: `Bearer ${token}`,
@@ -173,7 +178,83 @@ const Home = () => {
       console.error("Fare request failed:", error.response?.data || error);
     }
   };
-  
+  //Create Ride
+ const Ride = require("../models/ride.model");
+const fareService = require("../services/fare.service");
+
+function generateOTP() {
+  return Math.floor(1000 + Math.random() * 9000).toString();
+}
+
+exports.createRide = async ({
+  user,
+  pickup,
+  destination,
+  distance,
+  duration,
+  vehicleType,
+}) => {
+
+  const fares = fareService.calculateFare({
+    distance,
+    duration,
+  });
+
+  let selectedFare;
+
+  if (vehicleType === "bike") {
+    selectedFare = fares.bike;
+  } else if (vehicleType === "auto") {
+    selectedFare = fares.auto;
+  } else if (vehicleType === "car") {
+    selectedFare = fares.car;
+  } else {
+    throw new Error("Invalid vehicle type");
+  }
+
+  const ride = await Ride.create({
+    user,
+
+    vehicleType,
+
+    pickup: {
+      address: pickup.address,
+      location: {
+        type: "Point",
+        coordinates: [
+          pickup.lng,
+          pickup.lat,
+        ],
+      },
+    },
+
+    destination: {
+      address: destination.address,
+      location: {
+        type: "Point",
+        coordinates: [
+          destination.lng,
+          destination.lat,
+        ],
+      },
+    },
+
+    distance,
+
+    duration,
+
+    fare: {
+      baseFare: 0,
+      distanceFare: 0,
+      timeFare: 0,
+      totalFare: selectedFare,
+    },
+
+    otp: generateOTP(),
+  });
+
+  return ride;
+};
   useEffect(() => {
     if (pickupCoordinates && destinationCoordinates) {
       getDistanceTime();
@@ -219,6 +300,7 @@ const Home = () => {
       fare={fare}
       selectedVehicle={selectedVehicle}
       setSelectedVehicle={setSelectedVehicle}
+      createRide={createRide}
     />
   ) : (
     <>
