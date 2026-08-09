@@ -1,4 +1,4 @@
-const captainModel = require("../models/capatain.model");
+const captainModel = require("../models/captain.model");
 const bcrypt = require("bcrypt");
 const generateToken = require("../utils/generateToken");
 const captainService = require("../services/captain.services");
@@ -164,4 +164,87 @@ exports.updateLocation = async (req, res) => {
 
     }
 
+};
+
+exports.getNearbyCaptains = async (req, res) => {
+  try {
+    const { lng, lat } = req.query;
+
+    if (!lng || !lat) {
+      return res.status(400).json({
+        success: false,
+        message: "Longitude and latitude are required",
+      });
+    }
+
+    const captains = await captainService.findNearbyCaptains(
+      Number(lng),
+      Number(lat)
+    );
+
+    return res.status(200).json({
+      success: true,
+      count: captains.length,
+      data: captains,
+    });
+  } catch (error) {
+    console.error("Nearby Captain Error:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+
+exports.updateStatus = async (req, res) => {
+  try {
+    const { status } = req.body;
+
+    if (!status) {
+      return res.status(400).json({
+        success: false,
+        message: "Status is required",
+      });
+    }
+
+    if (!["active", "inactive"].includes(status)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid status",
+      });
+    }
+
+    const captain = await captainModel.findByIdAndUpdate(
+      req.captain._id,
+      {
+        status,
+      },
+      {
+        new: true,
+      }
+    );
+
+    if (!captain) {
+      return res.status(404).json({
+        success: false,
+        message: "Captain not found",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: `Captain is now ${status}`,
+      data: {
+        status: captain.status,
+      },
+    });
+  } catch (error) {
+    console.error("Update Captain Status Error:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
 };

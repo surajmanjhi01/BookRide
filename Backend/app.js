@@ -22,7 +22,6 @@ app.use('/api/users', userRoutes);
 app.use('/api/captains', captainRoutes);
 app.use('/api/riders', riderRoutes);
 app.use('/api/maps',mapRoutes);
-
 app.get('/', (req, res) => {
     res.send('Hello World');
 });

@@ -10,4 +10,10 @@ router.post('/logout', authMiddleware.authCaptain, captainController.logoutCapta
 router.patch('/location',
      authMiddleware.authCaptain,
       captainController.updateLocation);
+router.get('/nearby', authMiddleware.authCaptain, captainController.getNearbyCaptains);
+router.patch(
+  "/status",
+  authMiddleware.authCaptain,
+  captainController.updateStatus
+);
 module.exports=router;
