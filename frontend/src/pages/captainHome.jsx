@@ -1,8 +1,265 @@
-import React from 'react'
-const CaptainHome = () => {
-  return (
-    <div> Captian Home Page</div>
+import React, { useEffect, useState } from "react";
+import api from "../services/axios";
 
-  )
-}
+const CaptainHome = () => {
+  const [isOnline, setIsOnline] = useState(false);
+  const [location, setLocation] = useState(null);
+  const [loading, setLoading] = useState(false);
+
+  // --------------------------------------------------
+  // Toggle Captain Online / Offline
+  // --------------------------------------------------
+  const toggleOnlineStatus = async () => {
+    try {
+      setLoading(true);
+
+      const newStatus = isOnline ? "inactive" : "active";
+
+      const token = localStorage.getItem("captain");
+
+      if (!token) {
+        console.error("Captain token not found");
+        return;
+      }
+
+      const response = await api.patch(
+        "/api/captains/status",
+        {
+          status: newStatus,
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      console.log("Captain status:", response.data);
+
+      setIsOnline(newStatus === "active");
+    } catch (error) {
+      console.error(
+        "Status update failed:",
+        error.response?.data || error
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // --------------------------------------------------
+  // Track Captain Location
+  // --------------------------------------------------
+  useEffect(() => {
+    if (!isOnline) {
+      setLocation(null);
+      return;
+    }
+
+    if (!navigator.geolocation) {
+      console.error("Geolocation is not supported by this browser.");
+      return;
+    }
+
+    const token = localStorage.getItem("captain");
+
+    if (!token) {
+      console.error("Captain token not found");
+      return;
+    }
+
+    console.log("GPS tracking started");
+
+    const watchId = navigator.geolocation.watchPosition(
+      async (position) => {
+        const latitude = position.coords.latitude;
+        const longitude = position.coords.longitude;
+
+        console.log("Captain Location:", {
+          latitude,
+          longitude,
+        });
+
+        setLocation({
+          latitude,
+          longitude,
+        });
+
+        try {
+          const response = await api.patch(
+            "/api/captains/location",
+            {
+              latitude,
+              longitude,
+            },
+            {
+              headers: {
+                Authorization: `Bearer ${token}`,
+              },
+            }
+          );
+
+          console.log(
+            "Location updated:",
+            response.data
+          );
+        } catch (error) {
+          console.error(
+            "Location update failed:",
+            error.response?.data || error
+          );
+        }
+      },
+      (error) => {
+        console.error("GPS Error:", error);
+
+        switch (error.code) {
+          case error.PERMISSION_DENIED:
+            console.error("Location permission denied.");
+            break;
+
+          case error.POSITION_UNAVAILABLE:
+            console.error("Location information unavailable.");
+            break;
+
+          case error.TIMEOUT:
+            console.error("Location request timed out.");
+            break;
+
+          default:
+            console.error("Unknown GPS error.");
+        }
+      },
+      {
+        enableHighAccuracy: true,
+        maximumAge: 5000,
+        timeout: 10000,
+      }
+    );
+
+    // Cleanup GPS watcher when captain goes offline
+    // or component unmounts
+    return () => {
+      navigator.geolocation.clearWatch(watchId);
+      console.log("GPS tracking stopped");
+    };
+  }, [isOnline]);
+
+  return (
+    <div className="min-h-screen bg-gray-100 p-5">
+
+      {/* Header */}
+      <div className="flex justify-between items-center mb-6">
+        <div>
+          <h1 className="text-2xl font-bold">
+            Captain Dashboard
+          </h1>
+
+          <p className="text-gray-500">
+            Manage your availability and location
+          </p>
+        </div>
+
+        {/* Status */}
+        <div
+          className={`px-4 py-2 rounded-full text-sm font-semibold ${
+            isOnline
+              ? "bg-green-100 text-green-700"
+              : "bg-gray-200 text-gray-600"
+          }`}
+        >
+          {isOnline ? "ONLINE" : "OFFLINE"}
+        </div>
+      </div>
+
+      {/* Online / Offline Card */}
+      <div className="bg-white rounded-2xl shadow-md p-6 mb-5">
+
+        <h2 className="text-xl font-semibold mb-2">
+          Captain Status
+        </h2>
+
+        <p className="text-gray-500 mb-5">
+          {isOnline
+            ? "You are currently available for rides."
+            : "Go online to start receiving ride requests."
+          }
+        </p>
+
+        <button
+          onClick={toggleOnlineStatus}
+          disabled={loading}
+          className={`w-full py-4 rounded-xl text-white font-semibold text-lg transition ${
+            isOnline
+              ? "bg-red-500 hover:bg-red-600"
+              : "bg-green-500 hover:bg-green-600"
+          } ${
+            loading
+              ? "opacity-50 cursor-not-allowed"
+              : ""
+          }`}
+        >
+          {loading
+            ? "Updating..."
+            : isOnline
+            ? "Go Offline"
+            : "Go Online"}
+        </button>
+
+      </div>
+
+      {/* Location Card */}
+      <div className="bg-white rounded-2xl shadow-md p-6">
+
+        <h2 className="text-xl font-semibold mb-4">
+          Current Location
+        </h2>
+
+        {isOnline && location ? (
+          <div className="space-y-2">
+
+            <div className="flex justify-between">
+              <span className="text-gray-500">
+                Latitude
+              </span>
+
+              <span className="font-semibold">
+                {location.latitude.toFixed(6)}
+              </span>
+            </div>
+
+            <div className="flex justify-between">
+              <span className="text-gray-500">
+                Longitude
+              </span>
+
+              <span className="font-semibold">
+                {location.longitude.toFixed(6)}
+              </span>
+            </div>
+
+            <div className="mt-4 flex items-center gap-2 text-green-600">
+              <span className="w-3 h-3 bg-green-500 rounded-full"></span>
+
+              <span className="text-sm">
+                GPS tracking active
+              </span>
+            </div>
+
+          </div>
+        ) : (
+          <p className="text-gray-500">
+            {isOnline
+              ? "Waiting for GPS location..."
+              : "Go online to start location tracking."
+            }
+          </p>
+        )}
+
+      </div>
+
+    </div>
+  );
+};
+
 export default CaptainHome;
