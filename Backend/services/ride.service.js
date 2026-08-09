@@ -1,43 +1,66 @@
-const Ride=require("../models/ride.model");
-const fareService=require("../services/fare.service");
+const Ride = require("../models/ride.model");
+const captainModel = require("../models/captain.model");
+const fareService = require("../services/fare.service");
 function generateOTP() {
-    return Math.floor(1000+Math.random()*9000).toString();
+  return Math.floor(1000 + Math.random() * 9000).toString();
 }
+
 exports.createRide = async ({
-    user,
-    pickup,
-    destination,
-    distance,
-    duration
+  user,
+  pickup,
+  destination,
+  distance,
+  duration,
+  vehicleType,
 }) => {
 
-    const fares = fareService.calculateFare({
-        distance,
-        duration
-    });
+  // Validate vehicle
+  const allowedVehicles = ["bike", "auto", "car"];
 
-    const ride = await Ride.create({
+  if (!allowedVehicles.includes(vehicleType)) {
+    throw new Error("Invalid vehicle type");
+  }
 
-        user,
+  // Calculate all fares
+  const fares = fareService.calculateFare({
+    distance,
+    duration,
+  });
 
-        pickup,
+  // Select fare for chosen vehicle
+  const selectedFare = fares[vehicleType];
 
-        destination,
+  const ride = await Ride.create({
+    user,
 
-        distance,
+    vehicleType,
 
-        duration,
+    pickup,
 
-        fare: {
-            baseFare: 0,
-            distanceFare: 0,
-            timeFare: 0,
-            totalFare: fares.car
-        },
+    destination,
 
-        otp: generateOTP()
+    distance,
 
-    });
+    duration,
 
-    return ride;
+    fare: {
+      baseFare:
+        vehicleType === "bike"
+          ? 30
+          : vehicleType === "auto"
+          ? 40
+          : 70,
+
+      distanceFare: 0,
+
+      timeFare: 0,
+
+      totalFare: selectedFare,
+    },
+
+    otp: generateOTP(),
+  });
+
+  return ride;
 };
+

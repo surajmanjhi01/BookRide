@@ -14,6 +14,12 @@ const rideSchema = new mongoose.Schema(
       default: null,
     },
 
+    vehicleType: {
+      type: String,
+      enum: ["bike", "auto", "car"],
+      required: true,
+    },
+
     pickup: {
       address: {
         type: String,
@@ -26,7 +32,7 @@ const rideSchema = new mongoose.Schema(
           default: "Point",
         },
         coordinates: {
-          type: [Number], // [longitude, latitude]
+          type: [Number],
           required: true,
         },
       },
@@ -44,7 +50,7 @@ const rideSchema = new mongoose.Schema(
           default: "Point",
         },
         coordinates: {
-          type: [Number], // [longitude, latitude]
+          type: [Number],
           required: true,
         },
       },
@@ -70,12 +76,12 @@ const rideSchema = new mongoose.Schema(
     },
 
     distance: {
-      type: Number, // in kilometers
+      type: Number,
       required: true,
     },
 
     duration: {
-      type: Number, // in minutes
+      type: Number,
       required: true,
     },
 
@@ -108,7 +114,6 @@ const rideSchema = new mongoose.Schema(
   }
 );
 
-// Geospatial indexes for location queries
 rideSchema.index({ "pickup.location": "2dsphere" });
 rideSchema.index({ "destination.location": "2dsphere" });
 
