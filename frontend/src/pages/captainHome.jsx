@@ -1,14 +1,54 @@
 import React, { useEffect, useState } from "react";
 import api from "../services/axios";
+import socket from "../services/socket";
 
 const CaptainHome = () => {
   const [isOnline, setIsOnline] = useState(false);
   const [location, setLocation] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [socketConnected, setSocketConnected] = useState(socket.connected);
+
+  // --------------------------------------------------
+  // Socket Connection
+  // --------------------------------------------------
+
+  useEffect(() => {
+    const handleConnect = () => {
+      console.log("✅ Captain Socket Connected:", socket.id);
+      setSocketConnected(true);
+    };
+
+    const handleDisconnect = (reason) => {
+      console.log("❌ Captain Socket Disconnected:", reason);
+      setSocketConnected(false);
+    };
+
+    const handleConnectError = (error) => {
+      console.error("❌ Captain Socket Error:", error.message);
+      setSocketConnected(false);
+    };
+
+    socket.on("connect", handleConnect);
+    socket.on("disconnect", handleDisconnect);
+    socket.on("connect_error", handleConnectError);
+
+    // If socket was already connected
+    if (socket.connected) {
+      setSocketConnected(true);
+      console.log("✅ Socket already connected:", socket.id);
+    }
+
+    return () => {
+      socket.off("connect", handleConnect);
+      socket.off("disconnect", handleDisconnect);
+      socket.off("connect_error", handleConnectError);
+    };
+  }, []);
 
   // --------------------------------------------------
   // Toggle Captain Online / Offline
   // --------------------------------------------------
+
   const toggleOnlineStatus = async () => {
     try {
       setLoading(true);
@@ -37,6 +77,7 @@ const CaptainHome = () => {
       console.log("Captain status:", response.data);
 
       setIsOnline(newStatus === "active");
+
     } catch (error) {
       console.error(
         "Status update failed:",
@@ -50,6 +91,7 @@ const CaptainHome = () => {
   // --------------------------------------------------
   // Track Captain Location
   // --------------------------------------------------
+
   useEffect(() => {
     if (!isOnline) {
       setLocation(null);
@@ -57,7 +99,9 @@ const CaptainHome = () => {
     }
 
     if (!navigator.geolocation) {
-      console.error("Geolocation is not supported by this browser.");
+      console.error(
+        "Geolocation is not supported by this browser."
+      );
       return;
     }
 
@@ -68,14 +112,15 @@ const CaptainHome = () => {
       return;
     }
 
-    console.log("GPS tracking started");
+    console.log("📍 GPS tracking started");
 
     const watchId = navigator.geolocation.watchPosition(
       async (position) => {
+
         const latitude = position.coords.latitude;
         const longitude = position.coords.longitude;
 
-        console.log("Captain Location:", {
+        console.log("📍 Captain Location:", {
           latitude,
           longitude,
         });
@@ -86,6 +131,7 @@ const CaptainHome = () => {
         });
 
         try {
+
           const response = await api.patch(
             "/api/captains/location",
             {
@@ -100,36 +146,51 @@ const CaptainHome = () => {
           );
 
           console.log(
-            "Location updated:",
+            "📍 Location updated:",
             response.data
           );
+
         } catch (error) {
+
           console.error(
             "Location update failed:",
             error.response?.data || error
           );
+
         }
       },
+
       (error) => {
+
         console.error("GPS Error:", error);
 
         switch (error.code) {
+
           case error.PERMISSION_DENIED:
-            console.error("Location permission denied.");
+            console.error(
+              "Location permission denied."
+            );
             break;
 
           case error.POSITION_UNAVAILABLE:
-            console.error("Location information unavailable.");
+            console.error(
+              "Location information unavailable."
+            );
             break;
 
           case error.TIMEOUT:
-            console.error("Location request timed out.");
+            console.error(
+              "Location request timed out."
+            );
             break;
 
           default:
-            console.error("Unknown GPS error.");
+            console.error(
+              "Unknown GPS error."
+            );
         }
       },
+
       {
         enableHighAccuracy: true,
         maximumAge: 5000,
@@ -137,12 +198,16 @@ const CaptainHome = () => {
       }
     );
 
-    // Cleanup GPS watcher when captain goes offline
-    // or component unmounts
     return () => {
+
       navigator.geolocation.clearWatch(watchId);
-      console.log("GPS tracking stopped");
+
+      console.log(
+        "📍 GPS tracking stopped"
+      );
+
     };
+
   }, [isOnline]);
 
   return (
@@ -150,7 +215,9 @@ const CaptainHome = () => {
 
       {/* Header */}
       <div className="flex justify-between items-center mb-6">
+
         <div>
+
           <h1 className="text-2xl font-bold">
             Captain Dashboard
           </h1>
@@ -158,9 +225,35 @@ const CaptainHome = () => {
           <p className="text-gray-500">
             Manage your availability and location
           </p>
+
+          {/* Socket Status */}
+          <div className="mt-1 flex items-center gap-2 text-sm">
+
+            <span
+              className={`w-2 h-2 rounded-full ${
+                socketConnected
+                  ? "bg-green-500"
+                  : "bg-red-500"
+              }`}
+            ></span>
+
+            <span
+              className={
+                socketConnected
+                  ? "text-green-600"
+                  : "text-red-500"
+              }
+            >
+              {socketConnected
+                ? "Socket Connected"
+                : "Socket Disconnected"}
+            </span>
+
+          </div>
+
         </div>
 
-        {/* Status */}
+        {/* Online Status */}
         <div
           className={`px-4 py-2 rounded-full text-sm font-semibold ${
             isOnline
@@ -170,9 +263,10 @@ const CaptainHome = () => {
         >
           {isOnline ? "ONLINE" : "OFFLINE"}
         </div>
+
       </div>
 
-      {/* Online / Offline Card */}
+      {/* Captain Status */}
       <div className="bg-white rounded-2xl shadow-md p-6 mb-5">
 
         <h2 className="text-xl font-semibold mb-2">
@@ -208,7 +302,7 @@ const CaptainHome = () => {
 
       </div>
 
-      {/* Location Card */}
+      {/* Location */}
       <div className="bg-white rounded-2xl shadow-md p-6">
 
         <h2 className="text-xl font-semibold mb-4">
@@ -216,9 +310,11 @@ const CaptainHome = () => {
         </h2>
 
         {isOnline && location ? (
+
           <div className="space-y-2">
 
             <div className="flex justify-between">
+
               <span className="text-gray-500">
                 Latitude
               </span>
@@ -226,9 +322,11 @@ const CaptainHome = () => {
               <span className="font-semibold">
                 {location.latitude.toFixed(6)}
               </span>
+
             </div>
 
             <div className="flex justify-between">
+
               <span className="text-gray-500">
                 Longitude
               </span>
@@ -236,24 +334,32 @@ const CaptainHome = () => {
               <span className="font-semibold">
                 {location.longitude.toFixed(6)}
               </span>
+
             </div>
 
             <div className="mt-4 flex items-center gap-2 text-green-600">
+
               <span className="w-3 h-3 bg-green-500 rounded-full"></span>
 
               <span className="text-sm">
                 GPS tracking active
               </span>
+
             </div>
 
           </div>
+
         ) : (
+
           <p className="text-gray-500">
+
             {isOnline
               ? "Waiting for GPS location..."
               : "Go online to start location tracking."
             }
+
           </p>
+
         )}
 
       </div>
