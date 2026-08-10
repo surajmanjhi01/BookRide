@@ -38,7 +38,6 @@ exports.createRide = async (req, res) => {
       message: "Ride created successfully",
       data: ride,
     });
-
   } catch (error) {
     console.error("Create Ride Error:", error);
 

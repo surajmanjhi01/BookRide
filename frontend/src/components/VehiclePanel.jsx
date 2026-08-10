@@ -12,7 +12,7 @@ const VehiclePanel = ({
     {
       type: "bike",
       title: "Bike",
-      icon: "🏍",
+      icon: "🏍️",
       eta: "3 min",
       price: fare.bike,
     },
@@ -34,6 +34,7 @@ const VehiclePanel = ({
 
   return (
     <div className="w-full">
+
       <h2 className="text-2xl font-bold mb-4">
         Choose a Ride
       </h2>
@@ -50,6 +51,7 @@ const VehiclePanel = ({
           }`}
         >
           <div className="flex items-center gap-4">
+
             <div className="text-3xl">
               {vehicle.icon}
             </div>
@@ -63,6 +65,7 @@ const VehiclePanel = ({
                 {vehicle.eta}
               </p>
             </div>
+
           </div>
 
           <div className="text-xl font-bold">
@@ -72,14 +75,21 @@ const VehiclePanel = ({
       ))}
 
       {/* Confirm Ride */}
-      {selectedVehicle && (
-        <button
-          onClick={createRide}
-          className="w-full mt-4 bg-black text-white py-4 rounded-xl font-semibold text-lg hover:bg-gray-800 transition"
-        >
-          Confirm {selectedVehicle}
-        </button>
-      )}
+      <button
+        onClick={createRide}
+        disabled={!selectedVehicle}
+        className={`w-full py-4 rounded-xl text-lg font-semibold mt-4
+          ${
+            selectedVehicle
+              ? "bg-black text-white"
+              : "bg-gray-300 text-gray-500 cursor-not-allowed"
+          }`}
+      >
+        {selectedVehicle
+          ? `Confirm ${selectedVehicle.toUpperCase()} Ride`
+          : "Select a Vehicle"}
+      </button>
+
     </div>
   );
 };
