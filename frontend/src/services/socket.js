@@ -3,15 +3,15 @@ import { io } from "socket.io-client";
 const socket = io("http://localhost:3000", {
   withCredentials: true,
   transports: ["websocket", "polling"],
-  autoConnect: true,
+  autoConnect: false,
 });
 
 socket.on("connect", () => {
-  console.log("✅ Socket connected:", socket.id);
+  console.log("✅ Captain socket connected:", socket.id);
 });
 
 socket.on("disconnect", (reason) => {
-  console.log("❌ Socket disconnected:", reason);
+  console.log("❌ Captain socket disconnected:", reason);
 });
 
 socket.on("connect_error", (error) => {

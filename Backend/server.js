@@ -14,13 +14,15 @@ const io = new Server(server, {
   },
 });
 
-// Store captain socket connections
+// Store captainId -> socketId
 const captainSockets = new Map();
 
 io.on("connection", (socket) => {
   console.log("Socket connected:", socket.id);
 
-  // Captain joins
+  // -----------------------------------
+  // Captain joins socket system
+  // -----------------------------------
   socket.on("join-captain", ({ captainId }) => {
     if (!captainId) {
       console.log("Captain ID missing");
@@ -29,7 +31,7 @@ io.on("connection", (socket) => {
 
     captainSockets.set(captainId, socket.id);
 
-    // Also store it on socket
+    // Store captainId on this socket
     socket.captainId = captainId;
 
     console.log(
@@ -37,7 +39,9 @@ io.on("connection", (socket) => {
     );
   });
 
+  // -----------------------------------
   // Captain disconnects
+  // -----------------------------------
   socket.on("disconnect", () => {
     console.log("Socket disconnected:", socket.id);
 
@@ -51,6 +55,15 @@ io.on("connection", (socket) => {
   });
 });
 
+// -----------------------------------
+// Start server
+// -----------------------------------
+
 server.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
 });
+
+module.exports = {
+  io,
+  captainSockets,
+};

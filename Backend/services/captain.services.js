@@ -1,13 +1,10 @@
 const captainModel = require("../models/captain.model");
 
-
-// Update captain's current location
 exports.updateLocation = async (
   captainId,
   latitude,
   longitude
 ) => {
-
   return await captainModel.findByIdAndUpdate(
     captainId,
     {
@@ -26,13 +23,11 @@ exports.updateLocation = async (
 };
 
 
-// Get active captains within a radius
 exports.getCaptainsInRadius = async (
   longitude,
   latitude,
   radius
 ) => {
-
   return await captainModel.find({
     status: "active",
 
@@ -50,11 +45,9 @@ exports.getCaptainsInRadius = async (
       }
     }
   });
-
 };
 
 
-// Find nearby active captains
 exports.findNearbyCaptains = async (
   lng,
   lat,
@@ -65,7 +58,13 @@ exports.findNearbyCaptains = async (
 
     const captains = await captainModel.find({
 
+      // Only captains who are online
       status: "active",
+
+      // Captain must have socket connection
+      socketId: {
+        $ne: null
+      },
 
       location: {
         $near: {
@@ -90,5 +89,4 @@ exports.findNearbyCaptains = async (
     throw new Error(error.message);
 
   }
-
 };
