@@ -8,6 +8,9 @@ const CaptainHome = () => {
   const [loading, setLoading] = useState(false);
   const [socketConnected, setSocketConnected] = useState(false);
 
+  // Ride requests received from backend
+  const [rideRequests, setRideRequests] = useState([]);
+
   // ==================================================
   // SOCKET CONNECTION
   // ==================================================
@@ -26,10 +29,14 @@ const CaptainHome = () => {
 
     console.log("🔌 Initializing captain socket...");
 
-    // Give the JWT to Socket.IO
+    // Give JWT to Socket.IO
     socket.auth = {
       token,
     };
+
+    // ==================================================
+    // SOCKET CONNECT
+    // ==================================================
 
     const handleConnect = () => {
       console.log("=================================");
@@ -39,26 +46,56 @@ const CaptainHome = () => {
 
       setSocketConnected(true);
 
-      // Decode JWT to get captain ID
+      // -----------------------------------------------
+      // Decode JWT
+      // -----------------------------------------------
+
       try {
+        const tokenParts = token.split(".");
+
+        if (tokenParts.length !== 3) {
+          throw new Error("Invalid JWT format");
+        }
+
+        // JWT payload is base64url encoded
+        const base64Payload = tokenParts[1]
+          .replace(/-/g, "+")
+          .replace(/_/g, "/");
+
         const payload = JSON.parse(
-          atob(token.split(".")[1])
+          atob(base64Payload)
         );
 
         const captainId = payload.id;
 
+        if (!captainId) {
+          throw new Error(
+            "Captain ID not found inside JWT"
+          );
+        }
+
         console.log("🚕 Captain ID:", captainId);
 
+        // -----------------------------------------------
         // Tell backend which captain this socket belongs to
+        // -----------------------------------------------
+
         socket.emit("join-captain", {
           captainId,
         });
 
         console.log("✅ join-captain emitted");
       } catch (error) {
-        console.error("❌ JWT decode error:", error);
+        console.error(
+          "❌ JWT decode error:",
+          error
+        );
       }
     };
+
+    // ==================================================
+    // SOCKET DISCONNECT
+    // ==================================================
 
     const handleDisconnect = (reason) => {
       console.log(
@@ -69,6 +106,10 @@ const CaptainHome = () => {
       setSocketConnected(false);
     };
 
+    // ==================================================
+    // SOCKET CONNECTION ERROR
+    // ==================================================
+
     const handleConnectError = (error) => {
       console.error(
         "❌ CAPTAIN SOCKET CONNECTION ERROR:",
@@ -78,13 +119,81 @@ const CaptainHome = () => {
       setSocketConnected(false);
     };
 
-    socket.on("connect", handleConnect);
-    socket.on("disconnect", handleDisconnect);
-    socket.on("connect_error", handleConnectError);
+    // ==================================================
+    // NEW RIDE REQUEST
+    // ==================================================
 
-    // Connect socket
+    const handleNewRideRequest = (ride) => {
+      console.log("=================================");
+      console.log("🚨 NEW RIDE REQUEST RECEIVED");
+      console.log("Ride:", ride);
+      console.log("=================================");
+
+      // Add the new ride request to the list
+      setRideRequests((prevRequests) => {
+        // Prevent duplicate ride requests
+        const alreadyExists = prevRequests.some(
+          (request) =>
+            request.rideId === ride.rideId
+        );
+
+        if (alreadyExists) {
+          console.log(
+            "⚠️ Ride request already exists:",
+            ride.rideId
+          );
+
+          return prevRequests;
+        }
+
+        return [
+          ...prevRequests,
+          ride,
+        ];
+      });
+
+      // Optional browser notification
+      if (
+        "Notification" in window &&
+        Notification.permission === "granted"
+      ) {
+        new Notification("🚕 New Ride Request", {
+          body: `Pickup: ${ride.pickup?.address || "Unknown location"}`,
+        });
+      }
+    };
+
+    // ==================================================
+    // REGISTER SOCKET LISTENERS
+    // ==================================================
+
+    socket.on(
+      "connect",
+      handleConnect
+    );
+
+    socket.on(
+      "disconnect",
+      handleDisconnect
+    );
+
+    socket.on(
+      "connect_error",
+      handleConnectError
+    );
+
+    socket.on(
+      "new-ride-request",
+      handleNewRideRequest
+    );
+
+    // ==================================================
+    // CONNECT SOCKET
+    // ==================================================
+
     if (!socket.connected) {
       console.log("🔌 Connecting socket...");
+
       socket.connect();
     } else {
       console.log(
@@ -95,19 +204,48 @@ const CaptainHome = () => {
       handleConnect();
     }
 
-    // Cleanup listeners
+    // ==================================================
+    // CLEANUP
+    // ==================================================
+
     return () => {
-      socket.off("connect", handleConnect);
-      socket.off("disconnect", handleDisconnect);
+      socket.off(
+        "connect",
+        handleConnect
+      );
+
+      socket.off(
+        "disconnect",
+        handleDisconnect
+      );
+
       socket.off(
         "connect_error",
         handleConnectError
+      );
+
+      socket.off(
+        "new-ride-request",
+        handleNewRideRequest
       );
 
       console.log(
         "🧹 Captain socket listeners removed"
       );
     };
+  }, []);
+
+  // ==================================================
+  // REQUEST BROWSER NOTIFICATION PERMISSION
+  // ==================================================
+
+  useEffect(() => {
+    if (
+      "Notification" in window &&
+      Notification.permission === "default"
+    ) {
+      Notification.requestPermission();
+    }
   }, []);
 
   // ==================================================
@@ -122,12 +260,14 @@ const CaptainHome = () => {
         ? "inactive"
         : "active";
 
-      const token = localStorage.getItem("token");
+      const token =
+        localStorage.getItem("token");
 
       if (!token) {
         console.error(
           "❌ Captain token not found"
         );
+
         return;
       }
 
@@ -148,8 +288,15 @@ const CaptainHome = () => {
         response.data
       );
 
-      setIsOnline(newStatus === "active");
+      setIsOnline(
+        newStatus === "active"
+      );
 
+      // If captain goes offline,
+      // clear old ride requests
+      if (newStatus === "inactive") {
+        setRideRequests([]);
+      }
     } catch (error) {
       console.error(
         "❌ Status update failed:",
@@ -174,19 +321,24 @@ const CaptainHome = () => {
       console.error(
         "❌ Geolocation is not supported by this browser"
       );
+
       return;
     }
 
-    const token = localStorage.getItem("token");
+    const token =
+      localStorage.getItem("token");
 
     if (!token) {
       console.error(
         "❌ Captain token not found"
       );
+
       return;
     }
 
-    console.log("📍 GPS tracking started");
+    console.log(
+      "📍 GPS tracking started"
+    );
 
     const watchId =
       navigator.geolocation.watchPosition(
@@ -197,10 +349,13 @@ const CaptainHome = () => {
           const longitude =
             position.coords.longitude;
 
-          console.log("📍 Captain Location:", {
-            latitude,
-            longitude,
-          });
+          console.log(
+            "📍 Captain Location:",
+            {
+              latitude,
+              longitude,
+            }
+          );
 
           setLocation({
             latitude,
@@ -208,18 +363,19 @@ const CaptainHome = () => {
           });
 
           try {
-            const response = await api.patch(
-              "/api/captains/location",
-              {
-                latitude,
-                longitude,
-              },
-              {
-                headers: {
-                  Authorization: `Bearer ${token}`,
+            const response =
+              await api.patch(
+                "/api/captains/location",
+                {
+                  latitude,
+                  longitude,
                 },
-              }
-            );
+                {
+                  headers: {
+                    Authorization: `Bearer ${token}`,
+                  },
+                }
+              );
 
             console.log(
               "📍 Location updated:",
@@ -284,16 +440,62 @@ const CaptainHome = () => {
   }, [isOnline]);
 
   // ==================================================
+  // ACCEPT RIDE
+  // ==================================================
+
+  const acceptRide = (rideId) => {
+    console.log(
+      "✅ Accept ride:",
+      rideId
+    );
+
+    // We will connect this to the backend
+    // accept-ride API/socket event next.
+
+    setRideRequests((prevRequests) =>
+      prevRequests.filter(
+        (ride) =>
+          ride.rideId !== rideId
+      )
+    );
+  };
+
+  // ==================================================
+  // REJECT RIDE
+  // ==================================================
+
+  const rejectRide = (rideId) => {
+    console.log(
+      "❌ Reject ride:",
+      rideId
+    );
+
+    // We will connect this to the backend
+    // reject-ride API/socket event next.
+
+    setRideRequests((prevRequests) =>
+      prevRequests.filter(
+        (ride) =>
+          ride.rideId !== rideId
+      )
+    );
+  };
+
+  // ==================================================
   // UI
   // ==================================================
 
   return (
     <div className="min-h-screen bg-gray-100 p-5">
 
-      {/* HEADER */}
+      {/* ================================================
+          HEADER
+      ================================================ */}
+
       <div className="flex justify-between items-start mb-6">
 
         <div>
+
           <h1 className="text-2xl font-bold">
             Captain Dashboard
           </h1>
@@ -303,6 +505,7 @@ const CaptainHome = () => {
           </p>
 
           {/* SOCKET STATUS */}
+
           <div className="mt-2 flex items-center gap-2">
 
             <span
@@ -326,9 +529,11 @@ const CaptainHome = () => {
             </span>
 
           </div>
+
         </div>
 
         {/* ONLINE STATUS */}
+
         <div
           className={`px-4 py-2 rounded-full text-sm font-semibold ${
             isOnline
@@ -343,7 +548,10 @@ const CaptainHome = () => {
 
       </div>
 
-      {/* CAPTAIN STATUS */}
+      {/* ================================================
+          CAPTAIN STATUS
+      ================================================ */}
+
       <div className="bg-white rounded-2xl shadow-md p-6 mb-5">
 
         <h2 className="text-xl font-semibold mb-2">
@@ -351,10 +559,11 @@ const CaptainHome = () => {
         </h2>
 
         <p className="text-gray-500 mb-5">
+
           {isOnline
             ? "You are currently available for rides."
-            : "Go online to start receiving ride requests."
-          }
+            : "Go online to start receiving ride requests."}
+
         </p>
 
         <button
@@ -370,16 +579,207 @@ const CaptainHome = () => {
               : ""
           }`}
         >
+
           {loading
             ? "Updating..."
             : isOnline
             ? "Go Offline"
             : "Go Online"}
+
         </button>
 
       </div>
 
-      {/* LOCATION */}
+      {/* ================================================
+          NEW RIDE REQUESTS
+      ================================================ */}
+
+      {rideRequests.length > 0 && (
+
+        <div className="bg-white rounded-2xl shadow-md p-6 mb-5">
+
+          <div className="flex justify-between items-center mb-5">
+
+            <h2 className="text-xl font-semibold">
+              🚨 New Ride Requests
+            </h2>
+
+            <span className="bg-green-100 text-green-700 px-3 py-1 rounded-full text-sm font-semibold">
+              {rideRequests.length}
+            </span>
+
+          </div>
+
+          <div className="space-y-4">
+
+            {rideRequests.map((ride) => (
+
+              <div
+                key={ride.rideId}
+                className="border border-gray-200 rounded-xl p-5"
+              >
+
+                {/* VEHICLE */}
+
+                <div className="flex justify-between items-center mb-4">
+
+                  <div>
+
+                    <p className="text-sm text-gray-500">
+                      Vehicle Type
+                    </p>
+
+                    <p className="font-bold text-lg capitalize">
+                      {ride.vehicleType}
+                    </p>
+
+                  </div>
+
+                  <div className="text-right">
+
+                    <p className="text-sm text-gray-500">
+                      Fare
+                    </p>
+
+                    <p className="font-bold text-xl text-green-600">
+                      ₹{ride.fare?.totalFare}
+                    </p>
+
+                  </div>
+
+                </div>
+
+                {/* PICKUP */}
+
+                <div className="mb-4">
+
+                  <p className="text-sm text-gray-500">
+                    📍 Pickup
+                  </p>
+
+                  <p className="font-medium">
+                    {ride.pickup?.address ||
+                      "Pickup location"}
+                  </p>
+
+                </div>
+
+                {/* DESTINATION */}
+
+                <div className="mb-4">
+
+                  <p className="text-sm text-gray-500">
+                    🏁 Destination
+                  </p>
+
+                  <p className="font-medium">
+                    {ride.destination?.address ||
+                      "Destination"}
+                  </p>
+
+                </div>
+
+                {/* DISTANCE / DURATION */}
+
+                <div className="grid grid-cols-2 gap-3 mb-5">
+
+                  <div className="bg-gray-100 rounded-lg p-3">
+
+                    <p className="text-xs text-gray-500">
+                      Distance
+                    </p>
+
+                    <p className="font-semibold">
+                      {ride.distance} km
+                    </p>
+
+                  </div>
+
+                  <div className="bg-gray-100 rounded-lg p-3">
+
+                    <p className="text-xs text-gray-500">
+                      Duration
+                    </p>
+
+                    <p className="font-semibold">
+                      {ride.duration} min
+                    </p>
+
+                  </div>
+
+                </div>
+
+                {/* BUTTONS */}
+
+                <div className="flex gap-3">
+
+                  <button
+                    onClick={() =>
+                      acceptRide(
+                        ride.rideId
+                      )
+                    }
+                    className="flex-1 bg-green-500 hover:bg-green-600 text-white py-3 rounded-xl font-semibold transition"
+                  >
+                    Accept Ride
+                  </button>
+
+                  <button
+                    onClick={() =>
+                      rejectRide(
+                        ride.rideId
+                      )
+                    }
+                    className="flex-1 bg-red-500 hover:bg-red-600 text-white py-3 rounded-xl font-semibold transition"
+                  >
+                    Reject
+                  </button>
+
+                </div>
+
+              </div>
+
+            ))}
+
+          </div>
+
+        </div>
+
+      )}
+
+      {/* ================================================
+          NO RIDE REQUEST
+      ================================================ */}
+
+      {isOnline &&
+        rideRequests.length === 0 && (
+
+          <div className="bg-white rounded-2xl shadow-md p-6 mb-5">
+
+            <div className="text-center py-6">
+
+              <div className="text-4xl mb-3">
+                🚕
+              </div>
+
+              <h2 className="text-lg font-semibold">
+                Waiting for ride requests
+              </h2>
+
+              <p className="text-gray-500 text-sm mt-1">
+                Nearby ride requests will appear here.
+              </p>
+
+            </div>
+
+          </div>
+
+        )}
+
+      {/* ================================================
+          LOCATION
+      ================================================ */}
+
       <div className="bg-white rounded-2xl shadow-md p-6">
 
         <h2 className="text-xl font-semibold mb-4">
@@ -391,6 +791,7 @@ const CaptainHome = () => {
           <div className="space-y-2">
 
             <div className="flex justify-between">
+
               <span className="text-gray-500">
                 Latitude
               </span>
@@ -398,9 +799,11 @@ const CaptainHome = () => {
               <span className="font-semibold">
                 {location.latitude.toFixed(6)}
               </span>
+
             </div>
 
             <div className="flex justify-between">
+
               <span className="text-gray-500">
                 Longitude
               </span>
@@ -408,6 +811,7 @@ const CaptainHome = () => {
               <span className="font-semibold">
                 {location.longitude.toFixed(6)}
               </span>
+
             </div>
 
             <div className="mt-4 flex items-center gap-2 text-green-600">
@@ -425,10 +829,11 @@ const CaptainHome = () => {
         ) : (
 
           <p className="text-gray-500">
+
             {isOnline
               ? "Waiting for GPS location..."
-              : "Go online to start location tracking."
-            }
+              : "Go online to start location tracking."}
+
           </p>
 
         )}

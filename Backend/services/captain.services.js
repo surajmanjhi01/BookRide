@@ -47,46 +47,28 @@ exports.getCaptainsInRadius = async (
   });
 };
 
-
 exports.findNearbyCaptains = async (
-  lng,
-  lat,
-  maxDistance = 5000
+    lng,
+    lat,
+    maxDistance = 5000
 ) => {
+    try {
+        const captains = await captainModel.find({
+            status: "active",
 
-  try {
+            location: {
+                $near: {
+                    $geometry: {
+                        type: "Point",
+                        coordinates: [lng, lat],
+                    },
+                    $maxDistance: maxDistance,
+                },
+            },
+        });
 
-    const captains = await captainModel.find({
-
-      // Only captains who are online
-      status: "active",
-
-      // Captain must have socket connection
-      socketId: {
-        $ne: null
-      },
-
-      location: {
-        $near: {
-          $geometry: {
-            type: "Point",
-            coordinates: [
-              lng,
-              lat
-            ]
-          },
-
-          $maxDistance: maxDistance
-        }
-      }
-
-    });
-
-    return captains;
-
-  } catch (error) {
-
-    throw new Error(error.message);
-
-  }
+        return captains;
+    } catch (error) {
+        throw new Error(error.message);
+    }
 };

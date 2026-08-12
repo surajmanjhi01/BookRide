@@ -14,15 +14,18 @@ const io = new Server(server, {
   },
 });
 
-// Store captainId -> socketId
+// Make io available to Express controllers
+app.set("io", io);
+
+// Store captain socket connections
 const captainSockets = new Map();
+
+// Make captain socket map available to controllers
+app.set("captainSockets", captainSockets);
 
 io.on("connection", (socket) => {
   console.log("Socket connected:", socket.id);
 
-  // -----------------------------------
-  // Captain joins socket system
-  // -----------------------------------
   socket.on("join-captain", ({ captainId }) => {
     if (!captainId) {
       console.log("Captain ID missing");
@@ -31,7 +34,6 @@ io.on("connection", (socket) => {
 
     captainSockets.set(captainId, socket.id);
 
-    // Store captainId on this socket
     socket.captainId = captainId;
 
     console.log(
@@ -39,9 +41,6 @@ io.on("connection", (socket) => {
     );
   });
 
-  // -----------------------------------
-  // Captain disconnects
-  // -----------------------------------
   socket.on("disconnect", () => {
     console.log("Socket disconnected:", socket.id);
 
@@ -55,15 +54,6 @@ io.on("connection", (socket) => {
   });
 });
 
-// -----------------------------------
-// Start server
-// -----------------------------------
-
 server.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
 });
-
-module.exports = {
-  io,
-  captainSockets,
-};
