@@ -1,6 +1,10 @@
 const rideService = require("../services/ride.service");
 const captainService = require("../services/captain.services");
 
+// ==================================================
+// CREATE RIDE
+// ==================================================
+
 exports.createRide = async (req, res) => {
   try {
     const {
@@ -42,7 +46,10 @@ exports.createRide = async (req, res) => {
       vehicleType,
     });
 
-    console.log("Ride created:", ride._id);
+    console.log(
+      "Ride created:",
+      ride._id.toString()
+    );
 
     // -----------------------------
     // Find nearby captains
@@ -68,6 +75,7 @@ exports.createRide = async (req, res) => {
     // -----------------------------
 
     const io = req.app.get("io");
+
     const captainSockets =
       req.app.get("captainSockets");
 
@@ -97,13 +105,24 @@ exports.createRide = async (req, res) => {
       io.to(socketId).emit(
         "new-ride-request",
         {
-          rideId: ride._id,
+          rideId: ride._id.toString(),
+
           pickup: ride.pickup,
-          destination: ride.destination,
-          distance: ride.distance,
-          duration: ride.duration,
-          fare: ride.fare,
-          vehicleType: ride.vehicleType,
+
+          destination:
+            ride.destination,
+
+          distance:
+            ride.distance,
+
+          duration:
+            ride.duration,
+
+          fare:
+            ride.fare,
+
+          vehicleType:
+            ride.vehicleType,
         }
       );
     });
@@ -114,7 +133,8 @@ exports.createRide = async (req, res) => {
 
     return res.status(201).json({
       success: true,
-      message: "Ride created successfully",
+      message:
+        "Ride created successfully",
       data: ride,
     });
 
@@ -129,4 +149,135 @@ exports.createRide = async (req, res) => {
       message: error.message,
     });
   }
+};
+
+
+
+exports.acceptRide = async (req, res) => {
+  try {
+
+    const { rideId } = req.params;
+
+    // authCaptain middleware gives us this
+    const captainId = req.captain._id;
+
+    console.log(
+      `Captain ${captainId} attempting to accept ride ${rideId}`
+    );
+
+    // ------------------------------------------
+    // Accept ride atomically
+    // ------------------------------------------
+
+    const ride =
+      await rideService.acceptRide(
+        rideId,
+        captainId
+      );
+
+    console.log(
+      `Ride ${rideId} accepted by captain ${captainId}`
+    );
+
+    // ------------------------------------------
+    // Socket.IO
+    // ------------------------------------------
+
+    const io = req.app.get("io");
+
+    const userSockets =
+      req.app.get("userSockets");
+
+    if (io && userSockets) {
+
+      const userId =
+        ride.user.toString();
+
+      const userSocketId =
+        userSockets.get(userId);
+
+      if (userSocketId) {
+
+        console.log(
+          `Sending ride-accepted to user ${userId}`
+        );
+
+        io.to(userSocketId).emit(
+          "ride-accepted",
+          {
+            rideId: ride._id,
+            captainId: captainId,
+            status: ride.status,
+            captain: {
+              id: req.captain._id,
+              fullname: req.captain.fullname,
+              vehicle: req.captain.vehicle,
+            },
+          }
+        );
+
+      } else {
+
+        console.log(
+          `User ${userId} does not have an active socket`
+        );
+
+      }
+    }
+
+    // ------------------------------------------
+    // Response
+    // ------------------------------------------
+
+    return res.status(200).json({
+      success: true,
+      message: "Ride accepted successfully",
+      data: ride,
+    });
+
+  } catch (error) {
+
+    console.error(
+      "Accept Ride Error:",
+      error
+    );
+
+    return res.status(400).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+
+// ==================================================
+// REJECT RIDE
+// ==================================================
+
+exports.rejectRide = async (req, res) => {
+    try {
+        const { rideId } = req.params;
+
+        if (!rideId) {
+            return res.status(400).json({
+                success: false,
+                message: "Ride ID is required",
+            });
+        }
+
+        const ride = await rideService.rejectRide(rideId);
+
+        return res.status(200).json({
+            success: true,
+            message: "Ride rejected successfully",
+            data: ride,
+        });
+
+    } catch (error) {
+        console.error("Reject Ride Error:", error);
+
+        return res.status(500).json({
+            success: false,
+            message: error.message,
+        });
+    }
 };

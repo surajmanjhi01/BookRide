@@ -3,9 +3,15 @@ const { Server } = require("socket.io");
 
 const app = require("./app");
 
-const PORT = process.env.PORT || 3000;
+const PORT =
+  process.env.PORT || 3000;
 
-const server = http.createServer(app);
+const server =
+  http.createServer(app);
+
+// ==================================================
+// SOCKET.IO
+// ==================================================
 
 const io = new Server(server, {
   cors: {
@@ -14,46 +20,161 @@ const io = new Server(server, {
   },
 });
 
-// Make io available to Express controllers
+// ==================================================
+// CAPTAIN SOCKET MAP
+// ==================================================
+
+const captainSockets =
+  new Map();
+
+// ==================================================
+// USER SOCKET MAP
+// ==================================================
+
+const userSockets =
+  new Map();
+
+// ==================================================
+// MAKE AVAILABLE TO EXPRESS
+// ==================================================
+
 app.set("io", io);
 
-// Store captain socket connections
-const captainSockets = new Map();
+app.set(
+  "captainSockets",
+  captainSockets
+);
 
-// Make captain socket map available to controllers
-app.set("captainSockets", captainSockets);
+app.set(
+  "userSockets",
+  userSockets
+);
+
+// ==================================================
+// SOCKET CONNECTION
+// ==================================================
 
 io.on("connection", (socket) => {
-  console.log("Socket connected:", socket.id);
+  console.log(
+    "Socket connected:",
+    socket.id
+  );
 
-  socket.on("join-captain", ({ captainId }) => {
-    if (!captainId) {
-      console.log("Captain ID missing");
-      return;
-    }
+  // ==================================================
+  // CAPTAIN
+  // ==================================================
 
-    captainSockets.set(captainId, socket.id);
+  socket.on(
+    "join-captain",
+    ({ captainId }) => {
 
-    socket.captainId = captainId;
+      if (!captainId) {
+        console.log(
+          "Captain ID missing"
+        );
 
-    console.log(
-      `Captain ${captainId} connected with socket ${socket.id}`
-    );
-  });
+        return;
+      }
 
-  socket.on("disconnect", () => {
-    console.log("Socket disconnected:", socket.id);
+      captainSockets.set(
+        captainId,
+        socket.id
+      );
 
-    if (socket.captainId) {
-      captainSockets.delete(socket.captainId);
+      socket.captainId =
+        captainId;
 
       console.log(
-        `Captain ${socket.captainId} removed from socket map`
+        `Captain ${captainId} connected with socket ${socket.id}`
       );
     }
-  });
+  );
+
+  // ==================================================
+  // RIDER / USER
+  // ==================================================
+
+  socket.on(
+    "join-user",
+    ({ userId }) => {
+
+      if (!userId) {
+        console.log(
+          "User ID missing"
+        );
+
+        return;
+      }
+
+      userSockets.set(
+        userId,
+        socket.id
+      );
+
+      socket.userId =
+        userId;
+
+      console.log(
+        `User ${userId} connected with socket ${socket.id}`
+      );
+    }
+  );
+
+  // ==================================================
+  // DISCONNECT
+  // ==================================================
+
+  socket.on(
+    "disconnect",
+    () => {
+
+      console.log(
+        "Socket disconnected:",
+        socket.id
+      );
+
+      // -----------------------------
+      // Remove captain
+      // -----------------------------
+
+      if (socket.captainId) {
+
+        captainSockets.delete(
+          socket.captainId
+        );
+
+        console.log(
+          `Captain ${socket.captainId} removed from socket map`
+        );
+      }
+
+      // -----------------------------
+      // Remove user
+      // -----------------------------
+
+      if (socket.userId) {
+
+        userSockets.delete(
+          socket.userId
+        );
+
+        console.log(
+          `User ${socket.userId} removed from socket map`
+        );
+      }
+    }
+  );
 });
 
-server.listen(PORT, () => {
-  console.log(`Server is running on port ${PORT}`);
-});
+// ==================================================
+// START SERVER
+// ==================================================
+
+server.listen(
+  PORT,
+  () => {
+    console.log(
+      `Server is running on port ${PORT}`
+    );
+  }
+);
