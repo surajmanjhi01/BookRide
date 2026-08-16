@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import api from "../services/axios";
 import socket from "../services/socket";
 
@@ -10,6 +10,17 @@ const CaptainHome = () => {
 
   // Ride requests received from backend
   const [rideRequests, setRideRequests] = useState([]);
+
+  // Track which ride is being processed (accept/reject)
+  const [processingRideId, setProcessingRideId] = useState(null);
+  const [actionError, setActionError] = useState(null);
+
+  // Currently accepted ride (captain is now on a trip)
+  const [currentRide, setCurrentRide] = useState(null);
+  const [rideStatus, setRideStatus] = useState(null);
+
+  // Ref to track current ride inside socket listeners
+  const currentRideRef = useRef(null);
 
   // ==================================================
   // SOCKET CONNECTION
@@ -128,6 +139,14 @@ const CaptainHome = () => {
       console.log("🚨 NEW RIDE REQUEST RECEIVED");
       console.log("Ride:", ride);
       console.log("=================================");
+
+      // If captain is already on a trip, ignore new requests
+      if (currentRideRef.current) {
+        console.log(
+          "⚠️ Captain is on a trip. Ignoring new ride request."
+        );
+        return;
+      }
 
       // Add the new ride request to the list
       setRideRequests((prevRequests) => {
@@ -254,6 +273,17 @@ const CaptainHome = () => {
 
   const toggleOnlineStatus = async () => {
     try {
+      // Prevent going offline while on a trip
+      if (isOnline && currentRideRef.current) {
+        console.log(
+          "⚠️ Cannot go offline while on a trip"
+        );
+        alert(
+          "You cannot go offline while on an active trip. Complete the ride first."
+        );
+        return;
+      }
+
       setLoading(true);
 
       const newStatus = isOnline
@@ -443,42 +473,156 @@ const CaptainHome = () => {
   // ACCEPT RIDE
   // ==================================================
 
-  const acceptRide = (rideId) => {
+  const acceptRide = async (rideId) => {
     console.log(
       "✅ Accept ride:",
       rideId
     );
 
-    // We will connect this to the backend
-    // accept-ride API/socket event next.
+    setProcessingRideId(rideId);
+    setActionError(null);
 
-    setRideRequests((prevRequests) =>
-      prevRequests.filter(
-        (ride) =>
-          ride.rideId !== rideId
-      )
-    );
+    const token =
+      localStorage.getItem("token");
+
+    if (!token) {
+      console.error(
+        "❌ Captain token not found"
+      );
+
+      setActionError(
+        "Authentication error. Please login again."
+      );
+
+      setProcessingRideId(null);
+
+      return;
+    }
+
+    try {
+      const response = await api.patch(
+        `/api/riders/${rideId}/accept`,
+        {},
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      console.log(
+        "✅ Ride accepted:",
+        response.data
+      );
+
+      // Remove the accepted ride from the list
+      setRideRequests((prevRequests) =>
+        prevRequests.filter(
+          (ride) =>
+            ride.rideId !== rideId
+        )
+      );
+
+      // Set the current ride so the captain
+      // can see the trip details and OTP
+      const acceptedRide = response.data.data;
+
+      const rideData = {
+        rideId: acceptedRide._id?.toString() || rideId,
+        pickup: acceptedRide.pickup,
+        destination: acceptedRide.destination,
+        distance: acceptedRide.distance,
+        duration: acceptedRide.duration,
+        fare: acceptedRide.fare,
+        vehicleType: acceptedRide.vehicleType,
+        otp: acceptedRide.otp,
+      };
+
+      setCurrentRide(rideData);
+      currentRideRef.current = rideData;
+
+      setRideStatus(acceptedRide.status || "accepted");
+    } catch (error) {
+      console.error(
+        "❌ Accept ride failed:",
+        error.response?.data || error
+      );
+
+      setActionError(
+        error.response?.data?.message ||
+          "Failed to accept ride. Please try again."
+      );
+    } finally {
+      setProcessingRideId(null);
+    }
   };
 
   // ==================================================
   // REJECT RIDE
   // ==================================================
 
-  const rejectRide = (rideId) => {
+  const rejectRide = async (rideId) => {
     console.log(
       "❌ Reject ride:",
       rideId
     );
 
-    // We will connect this to the backend
-    // reject-ride API/socket event next.
+    setProcessingRideId(rideId);
+    setActionError(null);
 
-    setRideRequests((prevRequests) =>
-      prevRequests.filter(
-        (ride) =>
-          ride.rideId !== rideId
-      )
-    );
+    const token =
+      localStorage.getItem("token");
+
+    if (!token) {
+      console.error(
+        "❌ Captain token not found"
+      );
+
+      setActionError(
+        "Authentication error. Please login again."
+      );
+
+      setProcessingRideId(null);
+
+      return;
+    }
+
+    try {
+      const response = await api.patch(
+        `/api/riders/${rideId}/reject`,
+        {},
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      console.log(
+        "❌ Ride rejected:",
+        response.data
+      );
+
+      // Remove the rejected ride from the list
+      setRideRequests((prevRequests) =>
+        prevRequests.filter(
+          (ride) =>
+            ride.rideId !== rideId
+        )
+      );
+    } catch (error) {
+      console.error(
+        "❌ Reject ride failed:",
+        error.response?.data || error
+      );
+
+      setActionError(
+        error.response?.data?.message ||
+          "Failed to reject ride. Please try again."
+      );
+    } finally {
+      setProcessingRideId(null);
+    }
   };
 
   // ==================================================
@@ -591,6 +735,149 @@ const CaptainHome = () => {
       </div>
 
       {/* ================================================
+          CURRENT RIDE (ACCEPTED TRIP)
+      ================================================ */}
+
+      {currentRide && (
+        <div className="bg-white rounded-2xl shadow-md p-6 mb-5 border-2 border-green-400">
+
+          <div className="flex justify-between items-center mb-5">
+
+            <h2 className="text-xl font-semibold">
+              🚗 Current Ride
+            </h2>
+
+            <span className="bg-green-100 text-green-700 px-3 py-1 rounded-full text-sm font-semibold uppercase">
+              {rideStatus}
+            </span>
+
+          </div>
+
+          {/* OTP */}
+
+          <div className="bg-green-50 border border-green-200 rounded-xl p-4 mb-5 text-center">
+
+            <p className="text-sm text-gray-600 mb-1">
+              Share this OTP with the rider
+            </p>
+
+            <p className="text-4xl font-bold tracking-widest text-green-700">
+              {currentRide.otp}
+            </p>
+
+          </div>
+
+          {/* PICKUP */}
+
+          <div className="mb-4">
+
+            <p className="text-sm text-gray-500">
+              📍 Pickup
+            </p>
+
+            <p className="font-medium">
+              {currentRide.pickup?.address || "Pickup location"}
+            </p>
+
+          </div>
+
+          {/* DESTINATION */}
+
+          <div className="mb-4">
+
+            <p className="text-sm text-gray-500">
+              🏁 Destination
+            </p>
+
+            <p className="font-medium">
+              {currentRide.destination?.address || "Destination"}
+            </p>
+
+          </div>
+
+          {/* DISTANCE / DURATION / FARE */}
+
+          <div className="grid grid-cols-3 gap-3 mb-5">
+
+            <div className="bg-gray-100 rounded-lg p-3">
+
+              <p className="text-xs text-gray-500">
+                Distance
+              </p>
+
+              <p className="font-semibold">
+                {currentRide.distance} km
+              </p>
+
+            </div>
+
+            <div className="bg-gray-100 rounded-lg p-3">
+
+              <p className="text-xs text-gray-500">
+                Duration
+              </p>
+
+              <p className="font-semibold">
+                {currentRide.duration} min
+              </p>
+
+            </div>
+
+            <div className="bg-gray-100 rounded-lg p-3">
+
+              <p className="text-xs text-gray-500">
+                Fare
+              </p>
+
+              <p className="font-semibold text-green-600">
+                ₹{currentRide.fare?.totalFare}
+              </p>
+
+            </div>
+
+          </div>
+
+          {/* RIDE STATUS ACTIONS */}
+
+          <div className="flex gap-3">
+
+            {rideStatus === "accepted" && (
+              <button
+                onClick={() => setRideStatus("arrived")}
+                className="flex-1 bg-blue-500 hover:bg-blue-600 text-white py-3 rounded-xl font-semibold transition"
+              >
+                I've Arrived
+              </button>
+            )}
+
+            {rideStatus === "arrived" && (
+              <button
+                onClick={() => setRideStatus("ongoing")}
+                className="flex-1 bg-indigo-500 hover:bg-indigo-600 text-white py-3 rounded-xl font-semibold transition"
+              >
+                Start Ride
+              </button>
+            )}
+
+            {rideStatus === "ongoing" && (
+              <button
+                onClick={() => {
+                  setCurrentRide(null);
+                  currentRideRef.current = null;
+                  setRideStatus(null);
+                }}
+                className="flex-1 bg-green-500 hover:bg-green-600 text-white py-3 rounded-xl font-semibold transition"
+              >
+                Complete Ride
+              </button>
+            )}
+
+          </div>
+
+        </div>
+      )}
+
+      {/* ================================================
           NEW RIDE REQUESTS
       ================================================ */}
 
@@ -610,13 +897,27 @@ const CaptainHome = () => {
 
           </div>
 
+          {/* ACTION ERROR MESSAGE */}
+
+          {actionError && (
+            <div className="mb-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-sm">
+              ⚠️ {actionError}
+            </div>
+          )}
+
           <div className="space-y-4">
 
-            {rideRequests.map((ride) => (
+            {rideRequests.map((ride) => {
 
+              const isProcessing =
+                processingRideId === ride.rideId;
+
+              return (
               <div
                 key={ride.rideId}
-                className="border border-gray-200 rounded-xl p-5"
+                className={`border border-gray-200 rounded-xl p-5 ${
+                  isProcessing ? "opacity-60" : ""
+                }`}
               >
 
                 {/* VEHICLE */}
@@ -719,9 +1020,16 @@ const CaptainHome = () => {
                         ride.rideId
                       )
                     }
-                    className="flex-1 bg-green-500 hover:bg-green-600 text-white py-3 rounded-xl font-semibold transition"
+                    disabled={isProcessing}
+                    className={`flex-1 text-white py-3 rounded-xl font-semibold transition ${
+                      isProcessing
+                        ? "bg-gray-400 cursor-not-allowed"
+                        : "bg-green-500 hover:bg-green-600"
+                    }`}
                   >
-                    Accept Ride
+                    {isProcessing
+                      ? "Processing..."
+                      : "Accept Ride"}
                   </button>
 
                   <button
@@ -730,16 +1038,23 @@ const CaptainHome = () => {
                         ride.rideId
                       )
                     }
-                    className="flex-1 bg-red-500 hover:bg-red-600 text-white py-3 rounded-xl font-semibold transition"
+                    disabled={isProcessing}
+                    className={`flex-1 text-white py-3 rounded-xl font-semibold transition ${
+                      isProcessing
+                        ? "bg-gray-400 cursor-not-allowed"
+                        : "bg-red-500 hover:bg-red-600"
+                    }`}
                   >
-                    Reject
+                    {isProcessing
+                      ? "Processing..."
+                      : "Reject"}
                   </button>
 
                 </div>
 
               </div>
-
-            ))}
+              );
+            })}
 
           </div>
 

@@ -25,5 +25,10 @@ router.patch(
     authMiddleware.authCaptain,
     rideController.rejectRide
 );
+router.patch(
+  "/:rideId/arrived",
+  authMiddleware.authCaptain,
+  rideController.markRideArrived
+);
 
 module.exports = router;

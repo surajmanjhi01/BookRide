@@ -257,6 +257,9 @@ exports.rejectRide = async (req, res) => {
     try {
         const { rideId } = req.params;
 
+        // authCaptain middleware gives us this
+        const captainId = req.captain._id;
+
         if (!rideId) {
             return res.status(400).json({
                 success: false,
@@ -264,7 +267,7 @@ exports.rejectRide = async (req, res) => {
             });
         }
 
-        const ride = await rideService.rejectRide(rideId);
+        const ride = await rideService.rejectRide(rideId, captainId);
 
         return res.status(200).json({
             success: true,
@@ -280,4 +283,54 @@ exports.rejectRide = async (req, res) => {
             message: error.message,
         });
     }
+};
+exports.markRideArrived = async (req, res) => {
+  try {
+    const { rideId } = req.params;
+
+    const captainId = req.captain._id;
+
+    const ride = await rideService.markRideArrived(
+      rideId,
+      captainId
+    );
+
+    console.log(
+      `Captain ${captainId} arrived for ride ${rideId}`
+    );
+
+    // --------------------------------
+    // Notify rider through Socket.IO
+    // --------------------------------
+
+    const io = req.app.get("io");
+
+    if (io && ride.user) {
+      io.to(`user:${ride.user.toString()}`).emit(
+        "captain-arrived",
+        {
+          rideId: ride._id,
+          captainId: ride.captain,
+          status: ride.status,
+        }
+      );
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Captain has arrived at pickup location.",
+      data: ride,
+    });
+
+  } catch (error) {
+    console.error(
+      "Mark Ride Arrived Error:",
+      error
+    );
+
+    return res.status(400).json({
+      success: false,
+      message: error.message,
+    });
+  }
 };

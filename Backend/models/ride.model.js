@@ -14,6 +14,14 @@ const rideSchema = new mongoose.Schema(
       default: null,
     },
 
+    rejectedBy: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Captain",
+        default: [],
+      },
+    ],
+
     vehicleType: {
       type: String,
       enum: ["bike", "auto", "car"],

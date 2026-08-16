@@ -116,3 +116,25 @@ exports.rejectRide = async (rideId, captainId) => {
 
   return ride;
 };
+//captain marks the ride is arrived
+exports.markRideArrived=async(rideId,captainId)=>{
+  const ride=await Ride.findOneAndUpdate(
+    {
+      _id:rideId,
+      captain:captainId,
+      status:"accepted"
+    },
+    {
+      $set: {
+        status: "arrived"
+      }
+    },
+    {
+      new: true
+    }
+  );
+  if (!ride) {
+    throw new Error("Ride is no longer available or has already been completed.");
+  }
+  return ride;
+};
