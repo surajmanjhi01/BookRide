@@ -334,3 +334,49 @@ exports.markRideArrived = async (req, res) => {
     });
   }
 };
+
+exports.verifyOTP = async (req, res) => {
+  try {
+    const { rideId } = req.params;
+    const { otp } = req.body;
+
+    if (!otp) {
+      return res.status(400).json({
+        success: false,
+        message: "OTP is required",
+      });
+    }
+
+    const ride = await rideService.verifyOTP({
+      rideId,
+      otp,
+      captainId: req.captain._id,
+    });
+
+    // Socket.IO
+    const io = req.app.get("io");
+
+    // Notify rider that ride has started
+    io.to(`user:${ride.user.toString()}`).emit(
+      "ride-started",
+      {
+        rideId: ride._id,
+        status: ride.status,
+      }
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: "OTP verified successfully. Ride started.",
+      data: ride,
+    });
+
+  } catch (error) {
+    console.error("Verify OTP Error:", error);
+
+    return res.status(400).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};

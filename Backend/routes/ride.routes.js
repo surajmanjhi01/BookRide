@@ -30,5 +30,9 @@ router.patch(
   authMiddleware.authCaptain,
   rideController.markRideArrived
 );
-
+router.post(
+  "/:rideId/verify-otp",
+  authMiddleware.authCaptain,
+  rideController.verifyOTP
+);
 module.exports = router;

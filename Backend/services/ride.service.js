@@ -138,3 +138,24 @@ exports.markRideArrived=async(rideId,captainId)=>{
   }
   return ride;
 };
+
+exports.verifyOTP=async({
+  rideid,
+  otp,
+  captainId,
+})=>{
+  const ride=await Ride.findOne({
+    _id:rideId,
+    capatan:capatainId,
+    stAtus:"arrived",
+  });
+  if(!ride){
+    throw new Error("Ride is not available for otp verification");
+}
+if(ride.otp!==otp){
+  throw new Error("Invalid OTP");
+}
+ride.status="ongoing";
+awaitride.save();
+return ride;
+};
