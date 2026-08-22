@@ -221,7 +221,7 @@ exports.updateStatus = async (req, res) => {
         status,
       },
       {
-        new: true,
+        returnDocument: "after",
       }
     );
 

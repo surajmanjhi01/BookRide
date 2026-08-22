@@ -76,7 +76,7 @@ exports.acceptRide = async (
       },
     },
     {
-      new: true,
+      returnDocument: "after",
     }
   );
 
@@ -104,7 +104,7 @@ exports.rejectRide = async (rideId, captainId) => {
       },
     },
     {
-      new: true,
+      returnDocument: "after",
     }
   );
 
@@ -130,7 +130,7 @@ exports.markRideArrived=async(rideId,captainId)=>{
       }
     },
     {
-      new: true
+      returnDocument: "after"
     }
   );
   if (!ride) {
@@ -139,23 +139,27 @@ exports.markRideArrived=async(rideId,captainId)=>{
   return ride;
 };
 
-exports.verifyOTP=async({
-  rideid,
+exports.verifyOTP = async ({
+  rideId,
   otp,
   captainId,
-})=>{
-  const ride=await Ride.findOne({
-    _id:rideId,
-    capatan:capatainId,
-    stAtus:"arrived",
+}) => {
+  const ride = await Ride.findOne({
+    _id: rideId,
+    captain: captainId,
+    status: "arrived",
   });
-  if(!ride){
-    throw new Error("Ride is not available for otp verification");
-}
-if(ride.otp!==otp){
-  throw new Error("Invalid OTP");
-}
-ride.status="ongoing";
-awaitride.save();
-return ride;
+
+  if (!ride) {
+    throw new Error("Ride is not available for OTP verification");
+  }
+
+  if (ride.otp !== otp) {
+    throw new Error("Invalid OTP");
+  }
+
+  ride.status = "ongoing";
+  await ride.save();
+
+  return ride;
 };

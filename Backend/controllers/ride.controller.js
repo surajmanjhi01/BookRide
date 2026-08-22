@@ -79,9 +79,33 @@ exports.createRide = async (req, res) => {
     const captainSockets =
       req.app.get("captainSockets");
 
+    const pendingRideRequests =
+      req.app.get("pendingRideRequests");
+
     // -----------------------------
     // Send ride request
     // -----------------------------
+
+    const rideRequestPayload = {
+      rideId: ride._id.toString(),
+
+      pickup: ride.pickup,
+
+      destination:
+        ride.destination,
+
+      distance:
+        ride.distance,
+
+      duration:
+        ride.duration,
+
+      fare:
+        ride.fare,
+
+      vehicleType:
+        ride.vehicleType,
+    };
 
     nearbyCaptains.forEach((captain) => {
       const captainId =
@@ -92,8 +116,36 @@ exports.createRide = async (req, res) => {
 
       if (!socketId) {
         console.log(
-          `Captain ${captainId} has no active socket`
+          `Captain ${captainId} has no active socket, queueing ride request`
         );
+
+        // Queue the ride request so it can be
+        // delivered when the captain reconnects
+        if (pendingRideRequests) {
+          const existing =
+            pendingRideRequests.get(
+              captainId
+            ) || [];
+
+          // Avoid duplicate ride requests
+          const alreadyQueued =
+            existing.some(
+              (req) =>
+                req.rideId ===
+                rideRequestPayload.rideId
+            );
+
+          if (!alreadyQueued) {
+            existing.push(
+              rideRequestPayload
+            );
+
+            pendingRideRequests.set(
+              captainId,
+              existing
+            );
+          }
+        }
 
         return;
       }
@@ -104,26 +156,7 @@ exports.createRide = async (req, res) => {
 
       io.to(socketId).emit(
         "new-ride-request",
-        {
-          rideId: ride._id.toString(),
-
-          pickup: ride.pickup,
-
-          destination:
-            ride.destination,
-
-          distance:
-            ride.distance,
-
-          duration:
-            ride.duration,
-
-          fare:
-            ride.fare,
-
-          vehicleType:
-            ride.vehicleType,
-        }
+        rideRequestPayload
       );
     });
 
@@ -305,15 +338,30 @@ exports.markRideArrived = async (req, res) => {
 
     const io = req.app.get("io");
 
+    const userSockets =
+      req.app.get("userSockets");
+
     if (io && ride.user) {
-      io.to(`user:${ride.user.toString()}`).emit(
-        "captain-arrived",
-        {
-          rideId: ride._id,
-          captainId: ride.captain,
-          status: ride.status,
-        }
-      );
+      const userId =
+        ride.user.toString();
+
+      const userSocketId =
+        userSockets?.get(userId);
+
+      if (userSocketId) {
+        io.to(userSocketId).emit(
+          "captain-arrived",
+          {
+            rideId: ride._id,
+            captainId: ride.captain,
+            status: ride.status,
+          }
+        );
+      } else {
+        console.log(
+          `User ${userId} does not have an active socket for captain-arrived`
+        );
+      }
     }
 
     return res.status(200).json({
@@ -356,14 +404,29 @@ exports.verifyOTP = async (req, res) => {
     // Socket.IO
     const io = req.app.get("io");
 
+    const userSockets =
+      req.app.get("userSockets");
+
     // Notify rider that ride has started
-    io.to(`user:${ride.user.toString()}`).emit(
-      "ride-started",
-      {
-        rideId: ride._id,
-        status: ride.status,
-      }
-    );
+    const userId =
+      ride.user.toString();
+
+    const userSocketId =
+      userSockets?.get(userId);
+
+    if (userSocketId) {
+      io.to(userSocketId).emit(
+        "ride-started",
+        {
+          rideId: ride._id,
+          status: ride.status,
+        }
+      );
+    } else {
+      console.log(
+        `User ${userId} does not have an active socket for ride-started`
+      );
+    }
 
     return res.status(200).json({
       success: true,

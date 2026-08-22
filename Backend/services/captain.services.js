@@ -17,7 +17,7 @@ exports.updateLocation = async (
       }
     },
     {
-      new: true
+      returnDocument: "after"
     }
   );
 };

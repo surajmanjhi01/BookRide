@@ -96,6 +96,9 @@ const initSocket = (server) => {
             socket.captainId,
             {
               socketId: null
+            },
+            {
+              returnDocument: "after"
             }
           );
 

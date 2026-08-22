@@ -28,6 +28,17 @@ const captainSockets =
   new Map();
 
 // ==================================================
+// PENDING RIDE REQUESTS
+// --------------------------------------------------
+// Stores ride requests per captain ID so they can
+// be delivered if a captain reconnects after a
+// socket disconnection (e.g. page refresh).
+// ==================================================
+
+const pendingRideRequests =
+  new Map();
+
+// ==================================================
 // USER SOCKET MAP
 // ==================================================
 
@@ -43,6 +54,11 @@ app.set("io", io);
 app.set(
   "captainSockets",
   captainSockets
+);
+
+app.set(
+  "pendingRideRequests",
+  pendingRideRequests
 );
 
 app.set(
@@ -87,6 +103,34 @@ io.on("connection", (socket) => {
       console.log(
         `Captain ${captainId} connected with socket ${socket.id}`
       );
+
+      // --------------------------------------------------
+      // Deliver any pending ride requests that were
+      // created while this captain was disconnected
+      // --------------------------------------------------
+
+      const pending =
+        pendingRideRequests.get(
+          captainId
+        ) || [];
+
+      if (pending.length > 0) {
+        console.log(
+          `Delivering ${pending.length} pending ride request(s) to captain ${captainId}`
+        );
+
+        pending.forEach((rideData) => {
+          io.to(socket.id).emit(
+            "new-ride-request",
+            rideData
+          );
+        });
+
+        // Clear pending requests after delivery
+        pendingRideRequests.delete(
+          captainId
+        );
+      }
     }
   );
 
