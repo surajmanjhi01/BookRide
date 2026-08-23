@@ -24,7 +24,8 @@ const Home = () => {
   const [destinationCoordinates, setDestinationCoordinates] = useState(null);
 
   const [activeField, setActiveField] = useState("");
-
+  //Captain Location 
+  const [captainLocation, setCaptainLocation] = useState(null);
   // =========================
   // RIDE STATES
   // =========================
@@ -45,7 +46,13 @@ const Home = () => {
   // =========================
   const panelRef = useRef(null);
   const bottomSheetRef = useRef(null);
-
+   //for socket connection
+   socket.on("captain-location", (data)=>{
+    setCaptainLocation({
+      latitude:data.latitude,
+      longitude:data.longitude, 
+    });
+   }); 
   // ============================================================
   // GSAP ANIMATION
   // ============================================================
