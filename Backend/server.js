@@ -1,13 +1,13 @@
 const http = require("http");
 const { Server } = require("socket.io");
 
-const app = require("./app");
+const captainModel = require("./models/captain.model");
 const Ride = require("./models/ride.model");
-const PORT =
-  process.env.PORT || 3000;
+const app = require("./app");
 
-const server =
-  http.createServer(app);
+const PORT = process.env.PORT || 3000;
+
+const server = http.createServer(app);
 
 // ==================================================
 // SOCKET.IO
@@ -21,29 +21,14 @@ const io = new Server(server, {
 });
 
 // ==================================================
-// CAPTAIN SOCKET MAP
+// SOCKET MAPS
 // ==================================================
 
-const captainSockets =
-  new Map();
+const captainSockets = new Map();
+const userSockets = new Map();
 
-// ==================================================
-// PENDING RIDE REQUESTS
-// --------------------------------------------------
-// Stores ride requests per captain ID so they can
-// be delivered if a captain reconnects after a
-// socket disconnection (e.g. page refresh).
-// ==================================================
-
-const pendingRideRequests =
-  new Map();
-
-// ==================================================
-// USER SOCKET MAP
-// ==================================================
-
-const userSockets =
-  new Map();
+// Pending rides for disconnected captains
+const pendingRideRequests = new Map();
 
 // ==================================================
 // MAKE AVAILABLE TO EXPRESS
@@ -57,13 +42,13 @@ app.set(
 );
 
 app.set(
-  "pendingRideRequests",
-  pendingRideRequests
+  "userSockets",
+  userSockets
 );
 
 app.set(
-  "userSockets",
-  userSockets
+  "pendingRideRequests",
+  pendingRideRequests
 );
 
 // ==================================================
@@ -71,189 +56,123 @@ app.set(
 // ==================================================
 
 io.on("connection", (socket) => {
-  console.log(
-    "Socket connected:",
-    socket.id
-  );
+  console.log("=================================");
+  console.log("Socket connected:", socket.id);
+  console.log("=================================");
 
   // ==================================================
-  // CAPTAIN
+  // CAPTAIN CONNECT
   // ==================================================
 
-  socket.on(
-    "join-captain",
-    ({ captainId }) => {
-
+  socket.on("join-captain", async ({ captainId }) => {
+    try {
       if (!captainId) {
-        console.log(
-          "Captain ID missing"
-        );
-
+        console.log("❌ Captain ID missing");
         return;
       }
 
+      // ------------------------------------------
+      // Store socket in memory
+      // ------------------------------------------
+
       captainSockets.set(
-        captainId,
+        captainId.toString(),
         socket.id
       );
 
       socket.captainId =
-        captainId;
+        captainId.toString();
 
       console.log(
-        `Captain ${captainId} connected with socket ${socket.id}`
+        `🚕 Captain ${captainId} connected with socket ${socket.id}`
       );
 
-      // --------------------------------------------------
-      // Deliver any pending ride requests that were
-      // created while this captain was disconnected
-      // --------------------------------------------------
+      // ------------------------------------------
+      // IMPORTANT:
+      // Store socket ID in MongoDB
+      // ------------------------------------------
+
+      await captainModel.findByIdAndUpdate(
+        captainId,
+        {
+          socketId: socket.id,
+        },
+        {
+          returnDocument: "after",
+        }
+      );
+
+      console.log(
+        `✅ Captain ${captainId} socketId saved to MongoDB`
+      );
+
+      // ------------------------------------------
+      // Deliver pending rides
+      // ------------------------------------------
 
       const pending =
         pendingRideRequests.get(
-          captainId
+          captainId.toString()
         ) || [];
 
       if (pending.length > 0) {
         console.log(
-          `Delivering ${pending.length} pending ride request(s) to captain ${captainId}`
+          `📦 Delivering ${pending.length} pending ride(s) to captain ${captainId}`
         );
 
         pending.forEach((rideData) => {
-          io.to(socket.id).emit(
+          socket.emit(
             "new-ride-request",
             rideData
           );
         });
 
-        // Clear pending requests after delivery
         pendingRideRequests.delete(
-          captainId
+          captainId.toString()
         );
       }
-    }
-  );
 
-  // ==================================================
-  // RIDER / USER
-  // ==================================================
-
-  socket.on(
-    "join-user",
-    ({ userId }) => {
-
-      if (!userId) {
-        console.log(
-          "User ID missing"
-        );
-
-        return;
-      }
-
-      userSockets.set(
-        userId,
-        socket.id
-      );
-
-      socket.userId =
-        userId;
-
-      console.log(
-        `User ${userId} connected with socket ${socket.id}`
+    } catch (error) {
+      console.error(
+        "❌ Captain socket connection error:",
+        error
       );
     }
-  );
+  });
 
   // ==================================================
-  // DISCONNECT
+  // RIDER CONNECT
   // ==================================================
 
-  socket.on(
-    "disconnect",
-    () => {
+socket.on("join-rider", ({ userId }) => {
+  if (!userId) {
+    console.log("❌ Rider ID missing");
+    return;
+  }
 
-      console.log(
-        "Socket disconnected:",
-        socket.id
-      );
+  const userIdString = userId.toString();
 
-      // -----------------------------
-      // Remove captain
-      // -----------------------------
-
-      if (socket.captainId) {
-
-        captainSockets.delete(
-          socket.captainId
-        );
-
-        console.log(
-          `Captain ${socket.captainId} removed from socket map`
-        );
-      }
-
-      // -----------------------------
-      // Remove user
-      // -----------------------------
-
-      if (socket.userId) {
-
-        userSockets.delete(
-          socket.userId
-        );
-
-        console.log(
-          `User ${socket.userId} removed from socket map`
-        );
-      }
-    }
+  userSockets.set(
+    userIdString,
+    socket.id
   );
+
+  socket.userId = userIdString;
+
+  console.log("=================================");
+  console.log("👤 RIDER CONNECTED");
+  console.log("Rider ID:", userIdString);
+  console.log("Socket ID:", socket.id);
+  console.log(
+    "User socket map:",
+    [...userSockets.entries()]
+  );
+  console.log("=================================");
 });
 
-io.on("connection", (socket) => {
-  console.log("Socket connected:", socket.id);
-
-  // ============================================
-  // CAPTAIN CONNECT
-  // ============================================
-
-  socket.on("join-captain", ({ captainId }) => {
-    if (!captainId) {
-      console.log("Captain ID missing");
-      return;
-    }
-
-    captainSockets.set(captainId, socket.id);
-
-    socket.captainId = captainId;
-
-    console.log(
-      `Captain ${captainId} connected with socket ${socket.id}`
-    );
-  });
-
-  // ============================================
-  // RIDER CONNECT
-  // ============================================
-
-  socket.on("join-rider", ({ userId }) => {
-    if (!userId) {
-      console.log("User ID missing");
-      return;
-    }
-
-    userSockets.set(userId, socket.id);
-
-    socket.userId = userId;
-
-    console.log(
-      `Rider ${userId} connected with socket ${socket.id}`
-    );
-  });
-
-  // ============================================
+  // ==================================================
   // CAPTAIN LOCATION
-  // ============================================
+  // ==================================================
 
   socket.on(
     "captain-location",
@@ -262,9 +181,13 @@ io.on("connection", (socket) => {
       latitude,
       longitude,
     }) => {
+
       try {
+
         if (!rideId) {
-          console.log("Ride ID missing");
+          console.log(
+            "❌ Ride ID missing"
+          );
           return;
         }
 
@@ -272,49 +195,54 @@ io.on("connection", (socket) => {
           typeof latitude !== "number" ||
           typeof longitude !== "number"
         ) {
-          console.log("Invalid captain coordinates");
+          console.log(
+            "❌ Invalid captain coordinates"
+          );
           return;
         }
 
         if (!socket.captainId) {
           console.log(
-            "Captain location rejected: captain not identified"
+            "❌ Captain not identified"
           );
           return;
         }
 
-        // ----------------------------------------
+        // ------------------------------------------
         // Find ride
-        // ----------------------------------------
+        // ------------------------------------------
 
-        const ride = await Ride.findById(rideId);
+        const ride =
+          await Ride.findById(rideId);
 
         if (!ride) {
           console.log(
-            `Ride ${rideId} not found`
+            `❌ Ride ${rideId} not found`
           );
+
           return;
         }
 
-        // ----------------------------------------
+        // ------------------------------------------
         // Security check
-        // Captain must belong to this ride
-        // ----------------------------------------
+        // ------------------------------------------
 
         if (
           !ride.captain ||
-          ride.captain.toString() !== socket.captainId
+          ride.captain.toString() !==
+            socket.captainId
         ) {
+
           console.log(
-            `Captain ${socket.captainId} is not assigned to ride ${rideId}`
+            `❌ Captain ${socket.captainId} is not assigned to ride ${rideId}`
           );
 
           return;
         }
 
-        // ----------------------------------------
+        // ------------------------------------------
         // Find rider socket
-        // ----------------------------------------
+        // ------------------------------------------
 
         const riderId =
           ride.user.toString();
@@ -324,15 +252,15 @@ io.on("connection", (socket) => {
 
         if (!riderSocketId) {
           console.log(
-            `Rider ${riderId} has no active socket`
+            `⚠️ Rider ${riderId} has no active socket`
           );
 
           return;
         }
 
-        // ----------------------------------------
+        // ------------------------------------------
         // Send location to rider
-        // ----------------------------------------
+        // ------------------------------------------
 
         io.to(riderSocketId).emit(
           "captain-location",
@@ -344,46 +272,97 @@ io.on("connection", (socket) => {
         );
 
         console.log(
-          `Captain ${socket.captainId} location forwarded to rider ${riderId}`
+          `📍 Captain ${socket.captainId} location forwarded to rider ${riderId}`
         );
 
       } catch (error) {
+
         console.error(
-          "Captain location error:",
+          "❌ Captain location error:",
           error
         );
+
       }
+
     }
   );
 
-  // ============================================
+  // ==================================================
   // DISCONNECT
-  // ============================================
+  // ==================================================
 
-  socket.on("disconnect", () => {
+  socket.on("disconnect", async () => {
+
     console.log(
-      "Socket disconnected:",
+      "❌ Socket disconnected:",
       socket.id
     );
 
-    if (socket.captainId) {
-      captainSockets.delete(
-        socket.captainId
-      );
+    // ------------------------------------------
+    // CAPTAIN DISCONNECT
+    // ------------------------------------------
 
-      console.log(
-        `Captain ${socket.captainId} removed from socket map`
-      );
+    if (socket.captainId) {
+
+      const captainId =
+        socket.captainId.toString();
+
+      // Only delete if this socket is still
+      // the current socket for this captain
+      if (
+        captainSockets.get(captainId) ===
+        socket.id
+      ) {
+
+        captainSockets.delete(
+          captainId
+        );
+
+        console.log(
+          `Captain ${captainId} removed from socket map`
+        );
+
+        // Clear socketId from database
+        await captainModel.findByIdAndUpdate(
+          captainId,
+          {
+            socketId: null,
+          },
+          {
+            returnDocument: "after",
+          }
+        );
+
+        console.log(
+          `Captain ${captainId} socketId cleared`
+        );
+      }
     }
 
-    if (socket.userId) {
-      userSockets.delete(
-        socket.userId
-      );
+    // ------------------------------------------
+    // RIDER DISCONNECT
+    // ------------------------------------------
 
-      console.log(
-        `Rider ${socket.userId} removed from socket map`
-      );
+    if (socket.userId) {
+
+      const userId =
+        socket.userId.toString();
+
+      // Only remove if this is the
+      // current socket
+      if (
+        userSockets.get(userId) ===
+        socket.id
+      ) {
+
+        userSockets.delete(
+          userId
+        );
+
+        console.log(
+          `Rider ${userId} removed from socket map`
+        );
+      }
     }
   });
 });
@@ -396,7 +375,7 @@ server.listen(
   PORT,
   () => {
     console.log(
-      `Server is running on port ${PORT}`
+      `🚀 Server is running on port ${PORT}`
     );
   }
 );

@@ -127,43 +127,124 @@ exports.logoutCaptain = async (req, res) => {
   }
 };
 
+const Ride = require("../models/ride.model");
+
 exports.updateLocation = async (req, res) => {
+  try {
+    const { latitude, longitude } = req.body;
 
-    try {
-
-        const { latitude, longitude } = req.body;
-
-        if (
-            latitude === undefined ||
-            longitude === undefined
-        ) {
-            return res.status(400).json({
-                success: false,
-                message: "Latitude and longitude are required"
-            });
-        }
-
-        const captain =
-            await captainService.updateLocation(
-                req.captain._id,
-                latitude,
-                longitude
-            );
-
-        res.status(200).json({
-            success: true,
-            data: captain
-        });
-
-    } catch (error) {
-
-        res.status(500).json({
-            success: false,
-            message: error.message
-        });
-
+    if (
+      latitude === undefined ||
+      longitude === undefined
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Latitude and longitude are required",
+      });
     }
 
+    // -----------------------------------------
+    // Validate coordinates
+    // -----------------------------------------
+
+    if (
+      latitude < -90 ||
+      latitude > 90 ||
+      longitude < -180 ||
+      longitude > 180
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid latitude or longitude",
+      });
+    }
+
+    // -----------------------------------------
+    // Update captain location
+    // -----------------------------------------
+
+    const captain = await captainService.updateLocation(
+      req.captain._id,
+      longitude,
+      latitude
+    );
+
+    // -----------------------------------------
+    // Find active ride of this captain
+    // -----------------------------------------
+
+    const activeRide = await Ride.findOne({
+      captain: req.captain._id,
+      status: {
+        $in: [
+          "accepted",
+          "arrived",
+          "ongoing",
+        ],
+      },
+    });
+
+    // -----------------------------------------
+    // Send location to rider
+    // -----------------------------------------
+
+    if (activeRide) {
+      const io = req.app.get("io");
+      const userSockets = req.app.get("userSockets");
+
+      if (io && userSockets) {
+        const userId =
+          activeRide.user.toString();
+
+        const socketId =
+          userSockets.get(userId);
+
+        if (socketId) {
+          io.to(socketId).emit(
+            "captain-location-update",
+            {
+              rideId: activeRide._id,
+              captainId: req.captain._id,
+              latitude,
+              longitude,
+            }
+          );
+
+          console.log(
+            `📍 Captain location sent to rider ${userId}`
+          );
+        } else {
+          console.log(
+            `⚠️ Rider ${userId} has no active socket`
+          );
+        }
+      }
+    }
+
+    // -----------------------------------------
+    // Response
+    // -----------------------------------------
+
+    return res.status(200).json({
+      success: true,
+      message: "Captain location updated",
+      data: {
+        latitude,
+        longitude,
+      },
+    });
+
+  } catch (error) {
+    console.error(
+      "Update Captain Location Error:",
+      error
+    );
+
+    return res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
 };
 
 exports.getNearbyCaptains = async (req, res) => {

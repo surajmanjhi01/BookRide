@@ -7,6 +7,7 @@ const CaptainHome = () => {
   const [location, setLocation] = useState(null);
   const [loading, setLoading] = useState(false);
   const [socketConnected, setSocketConnected] = useState(false);
+  const[activeRide,setActiveRide]=useState(null);
 
   // Ride requests received from backend
   const [rideRequests, setRideRequests] = useState([]);
