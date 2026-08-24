@@ -15,15 +15,15 @@ exports.createRide = async (req, res) => {
       vehicleType,
     } = req.body;
 
-    // -----------------------------
-    // Validate request
-    // -----------------------------
+    // ==================================================
+    // VALIDATION
+    // ==================================================
 
     if (
       !pickup ||
       !destination ||
-      !distance ||
-      !duration ||
+      distance === undefined ||
+      duration === undefined ||
       !vehicleType
     ) {
       return res.status(400).json({
@@ -33,30 +33,136 @@ exports.createRide = async (req, res) => {
       });
     }
 
-    // -----------------------------
-    // Create ride
-    // -----------------------------
+    // ==================================================
+    // CHECK USER AUTHENTICATION
+    // ==================================================
 
-    const ride = await rideService.createRide({
-      user: req.user._id,
-      pickup,
-      destination,
-      distance,
-      duration,
-      vehicleType,
-    });
+    if (!req.user || !req.user._id) {
+      return res.status(401).json({
+        success: false,
+        message: "User authentication required.",
+      });
+    }
+
+    // ==================================================
+    // VALIDATE PICKUP COORDINATES
+    // ==================================================
+
+    if (
+      !pickup.location ||
+      !Array.isArray(pickup.location.coordinates) ||
+      pickup.location.coordinates.length !== 2
+    ) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Invalid pickup location coordinates.",
+      });
+    }
+
+    const [
+      longitude,
+      latitude,
+    ] = pickup.location.coordinates;
+
+    if (
+      typeof longitude !== "number" ||
+      typeof latitude !== "number"
+    ) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Pickup longitude and latitude must be numbers.",
+      });
+    }
+
+    // ==================================================
+    // DEBUG SOCKET STATE
+    // ==================================================
+
+    const userSockets =
+      req.app.get("userSockets");
 
     console.log(
-      "Ride created:",
+      "================================="
+    );
+
+    console.log(
+      "🚕 CREATE RIDE"
+    );
+
+    console.log(
+      "User ID:",
+      req.user._id.toString()
+    );
+
+    console.log(
+      "User Socket:",
+      userSockets
+        ? userSockets.get(
+            req.user._id.toString()
+          )
+        : "userSockets not available"
+    );
+
+    console.log(
+      "Pickup:",
+      [longitude, latitude]
+    );
+
+    console.log(
+      "Vehicle:",
+      vehicleType
+    );
+
+    console.log(
+      "================================="
+    );
+
+    // ==================================================
+    // CREATE RIDE IN DATABASE
+    // ==================================================
+
+    const ride =
+      await rideService.createRide({
+        user: req.user._id,
+        pickup,
+        destination,
+        distance,
+        duration,
+        vehicleType,
+      });
+
+    console.log(
+      "================================="
+    );
+
+    console.log(
+      "✅ RIDE CREATED"
+    );
+
+    console.log(
+      "Ride ID:",
       ride._id.toString()
     );
 
-    // -----------------------------
-    // Find nearby captains
-    // -----------------------------
+    console.log(
+      "Ride User:",
+      ride.user.toString()
+    );
 
-    const [longitude, latitude] =
-      pickup.location.coordinates;
+    console.log(
+      "Ride Status:",
+      ride.status
+    );
+
+    console.log(
+      "================================="
+    );
+
+    // ==================================================
+    // FIND NEARBY CAPTAINS
+    // ==================================================
 
     const nearbyCaptains =
       await captainService.findNearbyCaptains(
@@ -66,30 +172,41 @@ exports.createRide = async (req, res) => {
       );
 
     console.log(
-      "Nearby captains:",
+      "🚕 Nearby captains:",
       nearbyCaptains.length
     );
 
-    // -----------------------------
-    // Get Socket.IO objects
-    // -----------------------------
+    // ==================================================
+    // SOCKET.IO OBJECTS
+    // ==================================================
 
-    const io = req.app.get("io");
+    const io =
+      req.app.get("io");
 
     const captainSockets =
       req.app.get("captainSockets");
 
     const pendingRideRequests =
-      req.app.get("pendingRideRequests");
+      req.app.get(
+        "pendingRideRequests"
+      );
 
-    // -----------------------------
-    // Send ride request
-    // -----------------------------
+    if (!io) {
+      console.warn(
+        "⚠️ Socket.IO instance not available"
+      );
+    }
+
+    // ==================================================
+    // RIDE REQUEST PAYLOAD
+    // ==================================================
 
     const rideRequestPayload = {
-      rideId: ride._id.toString(),
+      rideId:
+        ride._id.toString(),
 
-      pickup: ride.pickup,
+      pickup:
+        ride.pickup,
 
       destination:
         ride.destination,
@@ -107,62 +224,95 @@ exports.createRide = async (req, res) => {
         ride.vehicleType,
     };
 
-    nearbyCaptains.forEach((captain) => {
-      const captainId =
-        captain._id.toString();
+    // ==================================================
+    // SEND RIDE REQUEST TO NEARBY CAPTAINS
+    // ==================================================
 
-      const socketId =
-        captainSockets.get(captainId);
+    nearbyCaptains.forEach(
+      (captain) => {
 
-      if (!socketId) {
-        console.log(
-          `Captain ${captainId} has no active socket, queueing ride request`
-        );
+        const captainId =
+          captain._id.toString();
 
-        // Queue the ride request so it can be
-        // delivered when the captain reconnects
-        if (pendingRideRequests) {
-          const existing =
-            pendingRideRequests.get(
-              captainId
-            ) || [];
+        const socketId =
+          captainSockets?.get(
+            captainId
+          );
 
-          // Avoid duplicate ride requests
-          const alreadyQueued =
-            existing.some(
-              (req) =>
-                req.rideId ===
-                rideRequestPayload.rideId
-            );
+        // ==================================================
+        // CAPTAIN HAS NO SOCKET
+        // ==================================================
 
-          if (!alreadyQueued) {
-            existing.push(
-              rideRequestPayload
-            );
+        if (!socketId) {
 
-            pendingRideRequests.set(
-              captainId,
-              existing
-            );
+          console.log(
+            `⚠️ Captain ${captainId} has no active socket`
+          );
+
+          // ----------------------------------------------
+          // Queue ride request
+          // ----------------------------------------------
+
+          if (pendingRideRequests) {
+
+            const existingRequests =
+              pendingRideRequests.get(
+                captainId
+              ) || [];
+
+            const alreadyQueued =
+              existingRequests.some(
+                (request) =>
+                  request.rideId ===
+                  rideRequestPayload.rideId
+              );
+
+            if (!alreadyQueued) {
+
+              existingRequests.push(
+                rideRequestPayload
+              );
+
+              pendingRideRequests.set(
+                captainId,
+                existingRequests
+              );
+
+              console.log(
+                `📦 Ride ${rideRequestPayload.rideId} queued for captain ${captainId}`
+              );
+            }
           }
+
+          return;
         }
 
-        return;
+        // ==================================================
+        // CAPTAIN HAS ACTIVE SOCKET
+        // ==================================================
+
+        console.log(
+          `📡 Sending ride request to captain ${captainId}`
+        );
+
+        console.log(
+          `Captain socket: ${socketId}`
+        );
+
+        io.to(socketId).emit(
+          "new-ride-request",
+          rideRequestPayload
+        );
+
+        console.log(
+          `✅ Ride request sent to captain ${captainId}`
+        );
       }
+    );
 
-      console.log(
-        `Sending ride request to captain ${captainId}`
-      );
-
-      io.to(socketId).emit(
-        "new-ride-request",
-        rideRequestPayload
-      );
-    });
-
-    // -----------------------------
-    // Response to rider
-    // -----------------------------
+    // ==================================================
+    // RESPONSE
+    // ==================================================
 
     return res.status(201).json({
       success: true,
@@ -172,35 +322,75 @@ exports.createRide = async (req, res) => {
     });
 
   } catch (error) {
+
     console.error(
-      "Create Ride Error:",
+      "❌ Create Ride Error:",
       error
     );
 
     return res.status(500).json({
       success: false,
-      message: error.message,
+      message:
+        error.message,
     });
   }
 };
 
 
+// ==================================================
+// ACCEPT RIDE
+// ==================================================
 
 exports.acceptRide = async (req, res) => {
   try {
 
-    const { rideId } = req.params;
+    const { rideId } =
+      req.params;
 
-    // authCaptain middleware gives us this
-    const captainId = req.captain._id;
+    // ==================================================
+    // VALIDATION
+    // ==================================================
+
+    if (!rideId) {
+      return res.status(400).json({
+        success: false,
+        message: "Ride ID is required",
+      });
+    }
+
+    // ==================================================
+    // AUTHENTICATED CAPTAIN
+    // ==================================================
+
+    if (
+      !req.captain ||
+      !req.captain._id
+    ) {
+      return res.status(401).json({
+        success: false,
+        message:
+          "Captain authentication required.",
+      });
+    }
+
+    const captainId =
+      req.captain._id;
 
     console.log(
-      `Captain ${captainId} attempting to accept ride ${rideId}`
+      "================================="
     );
 
-    // ------------------------------------------
-    // Accept ride atomically
-    // ------------------------------------------
+    console.log(
+      `🚕 Captain ${captainId} attempting to accept ride ${rideId}`
+    );
+
+    console.log(
+      "================================="
+    );
+
+    // ==================================================
+    // ACCEPT RIDE
+    // ==================================================
 
     const ride =
       await rideService.acceptRide(
@@ -209,170 +399,451 @@ exports.acceptRide = async (req, res) => {
       );
 
     console.log(
-      `Ride ${rideId} accepted by captain ${captainId}`
+      `✅ Ride ${rideId} accepted by captain ${captainId}`
     );
 
-    // ------------------------------------------
-    // Socket.IO
-    // ------------------------------------------
+    // ==================================================
+    // SOCKET.IO
+    // ==================================================
 
-    const io = req.app.get("io");
+    const io =
+      req.app.get("io");
 
     const userSockets =
       req.app.get("userSockets");
 
-    if (io && userSockets) {
+    if (
+      !io ||
+      !userSockets
+    ) {
+
+      console.log(
+        "⚠️ Socket.IO or userSockets not available"
+      );
+
+    } else {
 
       const userId =
         ride.user.toString();
 
       const userSocketId =
-        userSockets.get(userId);
+        userSockets.get(
+          userId
+        );
+
+      // ==================================================
+      // RIDER SOCKET FOUND
+      // ==================================================
 
       if (userSocketId) {
 
         console.log(
-          `Sending ride-accepted to user ${userId}`
+          `📡 Sending ride-accepted to user ${userId}`
+        );
+
+        console.log(
+          `Rider socket: ${userSocketId}`
         );
 
         io.to(userSocketId).emit(
           "ride-accepted",
           {
-            rideId: ride._id,
-            captainId: captainId,
-            status: ride.status,
+            rideId:
+              ride._id,
+
+            captainId:
+              captainId,
+
+            status:
+              ride.status,
+
             captain: {
-              id: req.captain._id,
-              fullname: req.captain.fullname,
-              vehicle: req.captain.vehicle,
+              id:
+                req.captain._id,
+
+              fullname:
+                req.captain.fullname,
+
+              vehicle:
+                req.captain.vehicle,
             },
           }
+        );
+
+        console.log(
+          `✅ ride-accepted sent to rider ${userId}`
         );
 
       } else {
 
         console.log(
-          `User ${userId} does not have an active socket`
+          `⚠️ User ${userId} does not have an active socket`
         );
 
+        console.log(
+          "Current user socket map:",
+          [
+            ...userSockets.entries(),
+          ]
+        );
       }
     }
 
-    // ------------------------------------------
-    // Response
-    // ------------------------------------------
+    // ==================================================
+    // RESPONSE
+    // ==================================================
 
     return res.status(200).json({
       success: true,
-      message: "Ride accepted successfully",
+      message:
+        "Ride accepted successfully",
       data: ride,
     });
 
   } catch (error) {
 
     console.error(
-      "Accept Ride Error:",
+      "❌ Accept Ride Error:",
       error
     );
 
     return res.status(400).json({
       success: false,
-      message: error.message,
+      message:
+        error.message,
     });
   }
 };
+
 
 // ==================================================
 // REJECT RIDE
 // ==================================================
 
-exports.rejectRide = async (req, res) => {
-    try {
-        const { rideId } = req.params;
+exports.rejectRide = async (
+  req,
+  res
+) => {
 
-        // authCaptain middleware gives us this
-        const captainId = req.captain._id;
+  try {
 
-        if (!rideId) {
-            return res.status(400).json({
-                success: false,
-                message: "Ride ID is required",
-            });
-        }
+    const { rideId } =
+      req.params;
 
-        const ride = await rideService.rejectRide(rideId, captainId);
-
-        return res.status(200).json({
-            success: true,
-            message: "Ride rejected successfully",
-            data: ride,
-        });
-
-    } catch (error) {
-        console.error("Reject Ride Error:", error);
-
-        return res.status(500).json({
-            success: false,
-            message: error.message,
-        });
+    if (!rideId) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Ride ID is required",
+      });
     }
+
+    if (
+      !req.captain ||
+      !req.captain._id
+    ) {
+      return res.status(401).json({
+        success: false,
+        message:
+          "Captain authentication required.",
+      });
+    }
+
+    const captainId =
+      req.captain._id;
+
+    const ride =
+      await rideService.rejectRide(
+        rideId,
+        captainId
+      );
+
+    console.log(
+      `🚫 Captain ${captainId} rejected ride ${rideId}`
+    );
+
+    return res.status(200).json({
+      success: true,
+      message:
+        "Ride rejected successfully",
+      data: ride,
+    });
+
+  } catch (error) {
+
+    console.error(
+      "❌ Reject Ride Error:",
+      error
+    );
+
+    return res.status(400).json({
+      success: false,
+      message:
+        error.message,
+    });
+  }
 };
+
+
+// ==================================================
+// CAPTAIN ARRIVED
+// ==================================================
+
+// ==================================================
+// CAPTAIN ARRIVED
+// ==================================================
+
+// ==================================================
+// CAPTAIN ARRIVED
+// ==================================================
+
 exports.markRideArrived = async (req, res) => {
   try {
     const { rideId } = req.params;
 
-    const captainId = req.captain._id;
+    // ==================================================
+    // VALIDATE RIDE ID
+    // ==================================================
+
+    if (!rideId) {
+      return res.status(400).json({
+        success: false,
+        message: "Ride ID is required",
+      });
+    }
+
+    // ==================================================
+    // VALIDATE CAPTAIN
+    // ==================================================
+
+    if (!req.captain || !req.captain._id) {
+      return res.status(401).json({
+        success: false,
+        message: "Captain authentication required.",
+      });
+    }
+
+    const captainId = req.captain._id.toString();
+
+    console.log("\n=================================");
+    console.log("📍 CAPTAIN ARRIVED");
+    console.log("=================================");
+    console.log("Ride ID:", rideId);
+    console.log("Captain ID:", captainId);
+
+    // ==================================================
+    // MARK RIDE ARRIVED
+    // ==================================================
 
     const ride = await rideService.markRideArrived(
       rideId,
       captainId
     );
 
-    console.log(
-      `Captain ${captainId} arrived for ride ${rideId}`
-    );
+    console.log("=================================");
+    console.log("✅ RIDE STATUS UPDATED");
+    console.log("=================================");
+    console.log("Ride ID:", ride._id.toString());
+    console.log("Ride status:", ride.status);
+    console.log("Ride user:", ride.user?.toString());
+    console.log("Ride captain:", ride.captain?.toString());
 
-    // --------------------------------
-    // Notify rider through Socket.IO
-    // --------------------------------
+    // ==================================================
+    // GET SOCKET.IO
+    // ==================================================
 
     const io = req.app.get("io");
+    const userSockets = req.app.get("userSockets");
 
-    const userSockets =
-      req.app.get("userSockets");
+    console.log("\n=================================");
+    console.log("🔌 SOCKET DEBUG");
+    console.log("=================================");
 
-    if (io && ride.user) {
-      const userId =
-        ride.user.toString();
+    console.log(
+      "IO available:",
+      !!io
+    );
 
-      const userSocketId =
-        userSockets?.get(userId);
+    console.log(
+      "userSockets available:",
+      !!userSockets
+    );
 
-      if (userSocketId) {
-        io.to(userSocketId).emit(
-          "captain-arrived",
-          {
-            rideId: ride._id,
-            captainId: ride.captain,
-            status: ride.status,
-          }
-        );
-      } else {
+    // ==================================================
+    // CHECK USER
+    // ==================================================
+
+    if (!ride.user) {
+      console.log(
+        "❌ Ride does not contain a user"
+      );
+
+      return res.status(200).json({
+        success: true,
+        message: "Captain arrived, but rider could not be notified.",
+        data: ride,
+      });
+    }
+
+    const userId = ride.user.toString();
+
+    console.log(
+      "👤 Rider ID from ride:",
+      userId
+    );
+
+    // ==================================================
+    // PRINT COMPLETE SOCKET MAP
+    // ==================================================
+
+    if (userSockets) {
+
+      console.log(
+        "📋 Current userSockets map:"
+      );
+
+      console.log(
+        [...userSockets.entries()]
+      );
+
+      console.log(
+        "Total connected riders:",
+        userSockets.size
+      );
+
+    } else {
+
+      console.log(
+        "❌ userSockets MAP DOES NOT EXIST"
+      );
+    }
+
+    // ==================================================
+    // FIND RIDER SOCKET
+    // ==================================================
+
+    const userSocketId =
+      userSockets?.get(userId);
+
+    console.log(
+      "🔎 Searching socket for rider:",
+      userId
+    );
+
+    console.log(
+      "🔌 Found rider socket:",
+      userSocketId
+    );
+
+    // ==================================================
+    // RIDER SOCKET FOUND
+    // ==================================================
+
+    if (
+      io &&
+      userSockets &&
+      userSocketId
+    ) {
+
+      console.log("\n=================================");
+      console.log("📡 SENDING CAPTAIN ARRIVED");
+      console.log("=================================");
+
+      console.log(
+        "Rider ID:",
+        userId
+      );
+
+      console.log(
+        "Rider Socket:",
+        userSocketId
+      );
+
+      console.log(
+        "Event:",
+        "captain-arrived"
+      );
+
+      io.to(userSocketId).emit(
+        "captain-arrived",
+        {
+          rideId: ride._id.toString(),
+
+          captainId:
+            ride.captain?.toString(),
+
+          status:
+            ride.status,
+        }
+      );
+
+      console.log(
+        "✅ captain-arrived event SENT"
+      );
+
+    } else {
+
+      // ==================================================
+      // SOCKET NOT FOUND
+      // ==================================================
+
+      console.log("\n=================================");
+      console.log("⚠️ RIDER SOCKET NOT FOUND");
+      console.log("=================================");
+
+      console.log(
+        "Rider ID:",
+        userId
+      );
+
+      console.log(
+        "Expected socket:",
+        userSocketId || "NONE"
+      );
+
+      console.log(
+        "IO available:",
+        !!io
+      );
+
+      console.log(
+        "userSockets available:",
+        !!userSockets
+      );
+
+      if (userSockets) {
+
         console.log(
-          `User ${userId} does not have an active socket for captain-arrived`
+          "Current userSockets:",
+          [...userSockets.entries()]
+        );
+
+        console.log(
+          "Does rider exist in map:",
+          userSockets.has(userId)
         );
       }
+
+      console.log(
+        "=================================\n"
+      );
     }
+
+    // ==================================================
+    // RESPONSE
+    // ==================================================
 
     return res.status(200).json({
       success: true,
-      message: "Captain has arrived at pickup location.",
+      message:
+        "Captain has arrived at pickup location.",
       data: ride,
     });
 
   } catch (error) {
+
     console.error(
-      "Mark Ride Arrived Error:",
+      "❌ Mark Ride Arrived Error:",
       error
     );
 
@@ -383,63 +854,125 @@ exports.markRideArrived = async (req, res) => {
   }
 };
 
-exports.verifyOTP = async (req, res) => {
-  try {
-    const { rideId } = req.params;
-    const { otp } = req.body;
+// ==================================================
+// VERIFY OTP
+// ==================================================
 
-    if (!otp) {
+exports.verifyOTP =
+  async (req, res) => {
+
+    try {
+
+      const {
+        rideId,
+      } = req.params;
+
+      const {
+        otp,
+      } = req.body;
+
+      if (!rideId) {
+        return res.status(400).json({
+          success: false,
+          message:
+            "Ride ID is required",
+        });
+      }
+
+      if (!otp) {
+        return res.status(400).json({
+          success: false,
+          message:
+            "OTP is required",
+        });
+      }
+
+      if (
+        !req.captain ||
+        !req.captain._id
+      ) {
+        return res.status(401).json({
+          success: false,
+          message:
+            "Captain authentication required.",
+        });
+      }
+
+      const ride =
+        await rideService.verifyOTP({
+          rideId,
+          otp,
+          captainId:
+            req.captain._id,
+        });
+
+      console.log(
+        `✅ OTP verified for ride ${rideId}`
+      );
+
+      // ==================================================
+      // NOTIFY RIDER
+      // ==================================================
+
+      const io =
+        req.app.get("io");
+
+      const userSockets =
+        req.app.get("userSockets");
+
+      const userId =
+        ride.user.toString();
+
+      const userSocketId =
+        userSockets?.get(
+          userId
+        );
+
+      if (
+        io &&
+        userSocketId
+      ) {
+
+        io.to(userSocketId).emit(
+          "ride-started",
+          {
+            rideId:
+              ride._id,
+
+            status:
+              ride.status,
+          }
+        );
+
+        console.log(
+          `✅ ride-started sent to rider ${userId}`
+        );
+
+      } else {
+
+        console.log(
+          `⚠️ User ${userId} does not have an active socket`
+        );
+      }
+
+      return res.status(200).json({
+        success: true,
+        message:
+          "OTP verified successfully. Ride started.",
+        data: ride,
+      });
+
+    } catch (error) {
+
+      console.error(
+        "❌ Verify OTP Error:",
+        error
+      );
+
       return res.status(400).json({
         success: false,
-        message: "OTP is required",
+        message:
+          error.message,
       });
     }
-
-    const ride = await rideService.verifyOTP({
-      rideId,
-      otp,
-      captainId: req.captain._id,
-    });
-
-    // Socket.IO
-    const io = req.app.get("io");
-
-    const userSockets =
-      req.app.get("userSockets");
-
-    // Notify rider that ride has started
-    const userId =
-      ride.user.toString();
-
-    const userSocketId =
-      userSockets?.get(userId);
-
-    if (userSocketId) {
-      io.to(userSocketId).emit(
-        "ride-started",
-        {
-          rideId: ride._id,
-          status: ride.status,
-        }
-      );
-    } else {
-      console.log(
-        `User ${userId} does not have an active socket for ride-started`
-      );
-    }
-
-    return res.status(200).json({
-      success: true,
-      message: "OTP verified successfully. Ride started.",
-      data: ride,
-    });
-
-  } catch (error) {
-    console.error("Verify OTP Error:", error);
-
-    return res.status(400).json({
-      success: false,
-      message: error.message,
-    });
-  }
-};
+  };

@@ -1,7 +1,9 @@
 const http = require("http");
 const { Server } = require("socket.io");
+const jwt = require("jsonwebtoken");
 
 const captainModel = require("./models/captain.model");
+const userModel = require("./models/user.model");
 const Ride = require("./models/ride.model");
 const app = require("./app");
 
@@ -29,6 +31,44 @@ const userSockets = new Map();
 
 // Pending rides for disconnected captains
 const pendingRideRequests = new Map();
+
+io.use(async (socket, next) => {
+  try {
+    const token = socket.handshake.auth?.token;
+
+    if (!token) {
+      console.log("❌ Socket authentication rejected: token missing");
+      return next(new Error("Socket authentication required"));
+    }
+
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const [user, captain] = await Promise.all([
+      userModel.findById(decoded.id).select("_id"),
+      captainModel.findById(decoded.id).select("_id"),
+    ]);
+
+    if (user) {
+      socket.authenticatedId = user._id.toString();
+      socket.authenticatedRole = "user";
+    } else if (captain) {
+      socket.authenticatedId = captain._id.toString();
+      socket.authenticatedRole = "captain";
+    } else {
+      console.log(
+        `❌ Socket authentication rejected: account ${decoded.id} not found`
+      );
+      return next(new Error("Socket account not found"));
+    }
+
+    console.log(
+      `🔐 Socket authenticated: ${socket.authenticatedRole} ${socket.authenticatedId}`
+    );
+    next();
+  } catch (error) {
+    console.error("❌ Socket authentication error:", error.message);
+    next(new Error("Socket authentication failed"));
+  }
+});
 
 // ==================================================
 // MAKE AVAILABLE TO EXPRESS
@@ -64,11 +104,19 @@ io.on("connection", (socket) => {
   // CAPTAIN CONNECT
   // ==================================================
 
-  socket.on("join-captain", async ({ captainId }) => {
+  socket.on("join-captain", async ({ captainId } = {}) => {
     try {
-      if (!captainId) {
-        console.log("❌ Captain ID missing");
+      if (socket.authenticatedRole !== "captain") {
+        console.log("❌ Non-captain socket attempted captain registration");
         return;
+      }
+
+      const authenticatedCaptainId = socket.authenticatedId;
+
+      if (captainId && captainId.toString() !== authenticatedCaptainId) {
+        console.log(
+          `⚠️ Ignoring mismatched captain ID ${captainId}; using ${authenticatedCaptainId}`
+        );
       }
 
       // ------------------------------------------
@@ -76,15 +124,15 @@ io.on("connection", (socket) => {
       // ------------------------------------------
 
       captainSockets.set(
-        captainId.toString(),
+        authenticatedCaptainId,
         socket.id
       );
 
       socket.captainId =
-        captainId.toString();
+        authenticatedCaptainId;
 
       console.log(
-        `🚕 Captain ${captainId} connected with socket ${socket.id}`
+        `🚕 Captain ${authenticatedCaptainId} connected with socket ${socket.id}`
       );
 
       // ------------------------------------------
@@ -93,7 +141,7 @@ io.on("connection", (socket) => {
       // ------------------------------------------
 
       await captainModel.findByIdAndUpdate(
-        captainId,
+        authenticatedCaptainId,
         {
           socketId: socket.id,
         },
@@ -103,7 +151,7 @@ io.on("connection", (socket) => {
       );
 
       console.log(
-        `✅ Captain ${captainId} socketId saved to MongoDB`
+        `✅ Captain ${authenticatedCaptainId} socketId saved to MongoDB`
       );
 
       // ------------------------------------------
@@ -112,12 +160,12 @@ io.on("connection", (socket) => {
 
       const pending =
         pendingRideRequests.get(
-          captainId.toString()
+          authenticatedCaptainId
         ) || [];
 
       if (pending.length > 0) {
         console.log(
-          `📦 Delivering ${pending.length} pending ride(s) to captain ${captainId}`
+          `📦 Delivering ${pending.length} pending ride(s) to captain ${authenticatedCaptainId}`
         );
 
         pending.forEach((rideData) => {
@@ -128,7 +176,7 @@ io.on("connection", (socket) => {
         });
 
         pendingRideRequests.delete(
-          captainId.toString()
+          authenticatedCaptainId
         );
       }
 
@@ -144,13 +192,19 @@ io.on("connection", (socket) => {
   // RIDER CONNECT
   // ==================================================
 
-socket.on("join-rider", ({ userId }) => {
-  if (!userId) {
-    console.log("❌ Rider ID missing");
+socket.on("join-rider", ({ userId } = {}) => {
+  if (socket.authenticatedRole !== "user") {
+    console.log("❌ Non-rider socket attempted rider registration");
     return;
   }
 
-  const userIdString = userId.toString();
+  const userIdString = socket.authenticatedId;
+
+  if (userId && userId.toString() !== userIdString) {
+    console.log(
+      `⚠️ Ignoring mismatched rider ID ${userId}; using ${userIdString}`
+    );
+  }
 
   userSockets.set(
     userIdString,
@@ -174,118 +228,219 @@ socket.on("join-rider", ({ userId }) => {
   // CAPTAIN LOCATION
   // ==================================================
 
-  socket.on(
-    "captain-location",
-    async ({
-      rideId,
-      latitude,
-      longitude,
-    }) => {
+ socket.on(
+  "captain-location",
+  async ({
+    rideId,
+    latitude,
+    longitude,
+  }) => {
+    try {
 
-      try {
+      // ==================================================
+      // BASIC VALIDATION
+      // ==================================================
 
-        if (!rideId) {
-          console.log(
-            "❌ Ride ID missing"
-          );
-          return;
-        }
+      if (
+        typeof latitude !== "number" ||
+        typeof longitude !== "number"
+      ) {
+        console.log(
+          "❌ Invalid captain coordinates"
+        );
 
-        if (
-          typeof latitude !== "number" ||
-          typeof longitude !== "number"
-        ) {
-          console.log(
-            "❌ Invalid captain coordinates"
-          );
-          return;
-        }
+        return;
+      }
 
-        if (!socket.captainId) {
-          console.log(
-            "❌ Captain not identified"
-          );
-          return;
-        }
+      if (!socket.captainId) {
+        console.log(
+          "❌ Captain not identified"
+        );
 
-        // ------------------------------------------
-        // Find ride
-        // ------------------------------------------
+        return;
+      }
 
-        const ride =
-          await Ride.findById(rideId);
+      console.log("=================================");
+      console.log("📍 CAPTAIN LOCATION RECEIVED");
+      console.log("Captain:", socket.captainId);
+      console.log("Latitude:", latitude);
+      console.log("Longitude:", longitude);
+      console.log("Ride:", rideId);
+      console.log("=================================");
 
-        if (!ride) {
-          console.log(
-            `❌ Ride ${rideId} not found`
-          );
+      // ==================================================
+      // SAVE CAPTAIN LOCATION TO MONGODB
+      // ==================================================
 
-          return;
-        }
-
-        // ------------------------------------------
-        // Security check
-        // ------------------------------------------
-
-        if (
-          !ride.captain ||
-          ride.captain.toString() !==
-            socket.captainId
-        ) {
-
-          console.log(
-            `❌ Captain ${socket.captainId} is not assigned to ride ${rideId}`
-          );
-
-          return;
-        }
-
-        // ------------------------------------------
-        // Find rider socket
-        // ------------------------------------------
-
-        const riderId =
-          ride.user.toString();
-
-        const riderSocketId =
-          userSockets.get(riderId);
-
-        if (!riderSocketId) {
-          console.log(
-            `⚠️ Rider ${riderId} has no active socket`
-          );
-
-          return;
-        }
-
-        // ------------------------------------------
-        // Send location to rider
-        // ------------------------------------------
-
-        io.to(riderSocketId).emit(
-          "captain-location",
+      const captain =
+        await captainModel.findByIdAndUpdate(
+          socket.captainId,
           {
-            rideId: ride._id,
-            latitude,
-            longitude,
+            location: {
+              type: "Point",
+              coordinates: [
+                longitude,
+                latitude,
+              ],
+            },
+          },
+          {
+            returnDocument: "after",
           }
         );
 
+      if (!captain) {
         console.log(
-          `📍 Captain ${socket.captainId} location forwarded to rider ${riderId}`
+          `❌ Captain ${socket.captainId} not found`
         );
 
-      } catch (error) {
-
-        console.error(
-          "❌ Captain location error:",
-          error
-        );
-
+        return;
       }
 
+      console.log(
+        "📍 Captain location saved:",
+        captain.location.coordinates
+      );
+
+      // ==================================================
+      // IF THERE IS NO RIDE
+      // ==================================================
+
+      if (!rideId) {
+        console.log(
+          "ℹ️ No active ride. Location saved only."
+        );
+
+        return;
+      }
+
+      // ==================================================
+      // FIND RIDE
+      // ==================================================
+
+      const ride =
+        await Ride.findById(rideId);
+
+      if (!ride) {
+        console.log(
+          `❌ Ride ${rideId} not found`
+        );
+
+        return;
+      }
+
+      // ==================================================
+      // SECURITY CHECK
+      // ==================================================
+
+      if (
+        !ride.captain ||
+        ride.captain.toString() !==
+          socket.captainId
+      ) {
+        console.log(
+          `❌ Captain ${socket.captainId} is not assigned to ride ${rideId}`
+        );
+
+        return;
+      }
+
+      // ==================================================
+      // FIND RIDER
+      // ==================================================
+
+      if (!ride.user) {
+        console.log(
+          `❌ Ride ${rideId} has no rider`
+        );
+
+        return;
+      }
+
+      const riderId =
+        ride.user.toString();
+
+      console.log(
+        "👤 Ride belongs to rider:",
+        riderId
+      );
+
+      // ==================================================
+      // DEBUG USER SOCKET MAP
+      // ==================================================
+
+      console.log(
+        "👥 Current user socket map:",
+        [...userSockets.entries()]
+      );
+
+      const riderSocketId =
+        userSockets.get(riderId);
+
+      console.log(
+        "🔎 Rider socket lookup:"
+      );
+
+      console.log(
+        "Rider ID:",
+        riderId
+      );
+
+      console.log(
+        "Rider socket:",
+        riderSocketId
+      );
+
+      // ==================================================
+      // RIDER NOT CONNECTED
+      // ==================================================
+
+      if (!riderSocketId) {
+
+        console.log(
+          `⚠️ Rider ${riderId} has no active socket`
+        );
+
+        console.log(
+          "Available rider sockets:",
+          [...userSockets.entries()]
+        );
+
+        return;
+      }
+
+      // ==================================================
+      // SEND LOCATION TO RIDER
+      // ==================================================
+
+      io.to(riderSocketId).emit(
+        "captain-location",
+        {
+          rideId:
+            ride._id.toString(),
+
+          captainId:
+            socket.captainId,
+
+          latitude,
+          longitude,
+        }
+      );
+
+      console.log(
+        `✅ Captain location forwarded to rider ${riderId}`
+      );
+
+    } catch (error) {
+
+      console.error(
+        "❌ Captain location error:",
+        error
+      );
+
     }
-  );
+  }
+);
 
   // ==================================================
   // DISCONNECT

@@ -8,7 +8,7 @@ import LocationSearchPanel from "../components/LocationSearchPanel";
 import VehiclePanel from "../components/VehiclePanel";
 import api from "../services/axios";
 import MapView from "../components/MapView";
-import socket from "../services/socket";
+import socket from "../services/riderSocket";
 
 import gsap from "gsap";
 import { useGSAP } from "@gsap/react";
@@ -118,49 +118,7 @@ const Home = () => {
       return;
     }
 
-    // ----------------------------------------------------------
-    // Decode JWT
-    // ----------------------------------------------------------
-
-    let userId;
-
-    try {
-      const tokenParts =
-        token.split(".");
-
-      if (tokenParts.length !== 3) {
-        throw new Error(
-          "Invalid JWT format"
-        );
-      }
-
-      // JWT uses base64url
-      const base64Payload =
-        tokenParts[1]
-          .replace(/-/g, "+")
-          .replace(/_/g, "/");
-
-      const payload =
-        JSON.parse(
-          atob(base64Payload)
-        );
-
-      userId = payload.id;
-
-      if (!userId) {
-        throw new Error(
-          "User ID not found in JWT"
-        );
-      }
-
-    } catch (error) {
-      console.error(
-        "❌ Failed to decode rider JWT:",
-        error
-      );
-
-      return;
-    }
+    socket.auth = { token };
 
     console.log(
       "================================="
@@ -168,11 +126,6 @@ const Home = () => {
 
     console.log(
       "👤 RIDER SOCKET INITIALIZATION"
-    );
-
-    console.log(
-      "Rider ID:",
-      userId
     );
 
     console.log(
@@ -207,28 +160,15 @@ const Home = () => {
         socket.id
       );
 
-      console.log(
-        "Rider ID:",
-        userId
-      );
-
       setSocketConnected(true);
 
       // --------------------------------------------------------
       // REGISTER RIDER WITH BACKEND
       // --------------------------------------------------------
 
-      socket.emit(
-        "join-rider",
-        {
-          userId: userId.toString(),
-        }
-      );
+      socket.emit("join-rider");
 
-      console.log(
-        "✅ join-rider emitted:",
-        userId.toString()
-      );
+      console.log("✅ join-rider emitted for authenticated rider");
 
       console.log(
         "================================="
@@ -435,6 +375,10 @@ const Home = () => {
         "captain-location-update",
         handleCaptainLocation
       );
+
+      if (socket.connected) {
+        socket.disconnect();
+      }
     };
 
   }, []);
