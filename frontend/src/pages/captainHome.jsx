@@ -1,45 +1,91 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, {
+  useEffect,
+  useRef,
+  useState,
+} from "react";
+
 import api from "../services/axios";
 import socket from "../services/socket";
 
 const CaptainHome = () => {
-  const [isOnline, setIsOnline] = useState(false);
-  const [location, setLocation] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [socketConnected, setSocketConnected] = useState(false);
-  const[activeRide,setActiveRide]=useState(null);
+  // ==================================================
+  // CAPTAIN STATES
+  // ==================================================
 
-  // Ride requests received from backend
-  const [rideRequests, setRideRequests] = useState([]);
+  const [isOnline, setIsOnline] =
+    useState(false);
 
-  // Track which ride is being processed (accept/reject)
-  const [processingRideId, setProcessingRideId] = useState(null);
-  const [actionError, setActionError] = useState(null);
+  const [location, setLocation] =
+    useState(null);
 
-  // Currently accepted ride (captain is now on a trip)
-  const [currentRide, setCurrentRide] = useState(null);
-  const [rideStatus, setRideStatus] = useState(null);
+  const [loading, setLoading] =
+    useState(false);
 
-  // Ref to track current ride inside socket listeners
-  const currentRideRef = useRef(null);
+  // ==================================================
+  // SOCKET STATES
+  // ==================================================
+
+  const [socketConnected, setSocketConnected] =
+    useState(false);
+
+  // ==================================================
+  // RIDE REQUESTS
+  // ==================================================
+
+  const [rideRequests, setRideRequests] =
+    useState([]);
+
+  // ==================================================
+  // CURRENT RIDE
+  // ==================================================
+
+  const [currentRide, setCurrentRide] =
+    useState(null);
+
+  const [rideStatus, setRideStatus] =
+    useState(null);
+
+  // ==================================================
+  // PROCESSING
+  // ==================================================
+
+  const [processingRideId, setProcessingRideId] =
+    useState(null);
+
+  const [actionError, setActionError] =
+    useState(null);
+
+  // ==================================================
+  // REFS
+  // ==================================================
+
+  const currentRideRef =
+    useRef(null);
 
   // ==================================================
   // SOCKET CONNECTION
   // ==================================================
 
   useEffect(() => {
-    const token = localStorage.getItem("token");
+    const token =
+      localStorage.getItem("token");
 
     if (!token) {
-      console.error("❌ Captain token not found in localStorage");
+      console.error(
+        "❌ Captain token not found in localStorage"
+      );
+
       console.log(
         "Available localStorage:",
         Object.keys(localStorage)
       );
+
       return;
     }
 
-    console.log("🔌 Initializing captain socket...");
+    console.log(
+      "🔌 Initializing captain socket..."
+    );
 
     // Give JWT to Socket.IO
     socket.auth = {
@@ -51,10 +97,22 @@ const CaptainHome = () => {
     // ==================================================
 
     const handleConnect = () => {
-      console.log("=================================");
-      console.log("✅ CAPTAIN SOCKET CONNECTED");
-      console.log("Socket ID:", socket.id);
-      console.log("=================================");
+      console.log(
+        "================================="
+      );
+
+      console.log(
+        "✅ CAPTAIN SOCKET CONNECTED"
+      );
+
+      console.log(
+        "Socket ID:",
+        socket.id
+      );
+
+      console.log(
+        "================================="
+      );
 
       setSocketConnected(true);
 
@@ -63,22 +121,29 @@ const CaptainHome = () => {
       // -----------------------------------------------
 
       try {
-        const tokenParts = token.split(".");
+        const tokenParts =
+          token.split(".");
 
-        if (tokenParts.length !== 3) {
-          throw new Error("Invalid JWT format");
+        if (
+          tokenParts.length !== 3
+        ) {
+          throw new Error(
+            "Invalid JWT format"
+          );
         }
 
-        // JWT payload is base64url encoded
-        const base64Payload = tokenParts[1]
-          .replace(/-/g, "+")
-          .replace(/_/g, "/");
+        const base64Payload =
+          tokenParts[1]
+            .replace(/-/g, "+")
+            .replace(/_/g, "/");
 
-        const payload = JSON.parse(
-          atob(base64Payload)
-        );
+        const payload =
+          JSON.parse(
+            atob(base64Payload)
+          );
 
-        const captainId = payload.id;
+        const captainId =
+          payload.id;
 
         if (!captainId) {
           throw new Error(
@@ -86,18 +151,28 @@ const CaptainHome = () => {
           );
         }
 
-        console.log("🚕 Captain ID:", captainId);
+        console.log(
+          "🚕 Captain ID:",
+          captainId
+        );
 
         // -----------------------------------------------
-        // Tell backend which captain this socket belongs to
+        // Register captain with backend
         // -----------------------------------------------
 
-        socket.emit("join-captain", {
-          captainId,
-        });
+        socket.emit(
+          "join-captain",
+          {
+            captainId,
+          }
+        );
 
-        console.log("✅ join-captain emitted");
+        console.log(
+          "✅ join-captain emitted"
+        );
+
       } catch (error) {
+
         console.error(
           "❌ JWT decode error:",
           error
@@ -109,7 +184,10 @@ const CaptainHome = () => {
     // SOCKET DISCONNECT
     // ==================================================
 
-    const handleDisconnect = (reason) => {
+    const handleDisconnect = (
+      reason
+    ) => {
+
       console.log(
         "❌ CAPTAIN SOCKET DISCONNECTED:",
         reason
@@ -122,7 +200,10 @@ const CaptainHome = () => {
     // SOCKET CONNECTION ERROR
     // ==================================================
 
-    const handleConnectError = (error) => {
+    const handleConnectError = (
+      error
+    ) => {
+
       console.error(
         "❌ CAPTAIN SOCKET CONNECTION ERROR:",
         error.message
@@ -135,51 +216,99 @@ const CaptainHome = () => {
     // NEW RIDE REQUEST
     // ==================================================
 
-    const handleNewRideRequest = (ride) => {
-      console.log("=================================");
-      console.log("🚨 NEW RIDE REQUEST RECEIVED");
-      console.log("Ride:", ride);
-      console.log("=================================");
+    const handleNewRideRequest = (
+      ride
+    ) => {
 
-      // If captain is already on a trip, ignore new requests
-      if (currentRideRef.current) {
+      console.log(
+        "================================="
+      );
+
+      console.log(
+        "🚨 NEW RIDE REQUEST RECEIVED"
+      );
+
+      console.log(
+        "Ride:",
+        ride
+      );
+
+      console.log(
+        "================================="
+      );
+
+      // -----------------------------------------------
+      // Don't accept new requests during active ride
+      // -----------------------------------------------
+
+      if (
+        currentRideRef.current
+      ) {
+
         console.log(
-          "⚠️ Captain is on a trip. Ignoring new ride request."
+          "⚠️ Captain is already on a trip."
         );
+
+        console.log(
+          "⚠️ Ignoring new ride request."
+        );
+
         return;
       }
 
-      // Add the new ride request to the list
-      setRideRequests((prevRequests) => {
-        // Prevent duplicate ride requests
-        const alreadyExists = prevRequests.some(
-          (request) =>
-            request.rideId === ride.rideId
-        );
+      // -----------------------------------------------
+      // Add ride request
+      // -----------------------------------------------
 
-        if (alreadyExists) {
-          console.log(
-            "⚠️ Ride request already exists:",
-            ride.rideId
-          );
+      setRideRequests(
+        (prevRequests) => {
 
-          return prevRequests;
+          const alreadyExists =
+            prevRequests.some(
+              (request) =>
+                request.rideId ===
+                ride.rideId
+            );
+
+          if (
+            alreadyExists
+          ) {
+
+            console.log(
+              "⚠️ Ride request already exists:",
+              ride.rideId
+            );
+
+            return prevRequests;
+          }
+
+          return [
+            ...prevRequests,
+            ride,
+          ];
         }
+      );
 
-        return [
-          ...prevRequests,
-          ride,
-        ];
-      });
+      // -----------------------------------------------
+      // Browser notification
+      // -----------------------------------------------
 
-      // Optional browser notification
       if (
         "Notification" in window &&
-        Notification.permission === "granted"
+        Notification.permission ===
+          "granted"
       ) {
-        new Notification("🚕 New Ride Request", {
-          body: `Pickup: ${ride.pickup?.address || "Unknown location"}`,
-        });
+
+        new Notification(
+          "🚕 New Ride Request",
+          {
+            body:
+              `Pickup: ${
+                ride.pickup?.address ||
+                "Unknown location"
+              }`,
+          }
+        );
       }
     };
 
@@ -211,11 +340,18 @@ const CaptainHome = () => {
     // CONNECT SOCKET
     // ==================================================
 
-    if (!socket.connected) {
-      console.log("🔌 Connecting socket...");
+    if (
+      !socket.connected
+    ) {
+
+      console.log(
+        "🔌 Connecting captain socket..."
+      );
 
       socket.connect();
+
     } else {
+
       console.log(
         "✅ Socket already connected:",
         socket.id
@@ -229,6 +365,7 @@ const CaptainHome = () => {
     // ==================================================
 
     return () => {
+
       socket.off(
         "connect",
         handleConnect
@@ -253,102 +390,143 @@ const CaptainHome = () => {
         "🧹 Captain socket listeners removed"
       );
     };
+
   }, []);
 
   // ==================================================
-  // REQUEST BROWSER NOTIFICATION PERMISSION
+  // REQUEST NOTIFICATION PERMISSION
   // ==================================================
 
   useEffect(() => {
+
     if (
       "Notification" in window &&
-      Notification.permission === "default"
+      Notification.permission ===
+        "default"
     ) {
+
       Notification.requestPermission();
     }
+
   }, []);
 
   // ==================================================
   // TOGGLE ONLINE / OFFLINE
   // ==================================================
 
-  const toggleOnlineStatus = async () => {
-    try {
-      // Prevent going offline while on a trip
-      if (isOnline && currentRideRef.current) {
-        console.log(
-          "⚠️ Cannot go offline while on a trip"
-        );
-        alert(
-          "You cannot go offline while on an active trip. Complete the ride first."
-        );
-        return;
-      }
+  const toggleOnlineStatus =
+    async () => {
 
-      setLoading(true);
+      try {
 
-      const newStatus = isOnline
-        ? "inactive"
-        : "active";
+        // ---------------------------------------------
+        // Don't go offline during active ride
+        // ---------------------------------------------
 
-      const token =
-        localStorage.getItem("token");
+        if (
+          isOnline &&
+          currentRideRef.current
+        ) {
 
-      if (!token) {
-        console.error(
-          "❌ Captain token not found"
-        );
+          console.log(
+            "⚠️ Cannot go offline while on a trip"
+          );
 
-        return;
-      }
+          alert(
+            "You cannot go offline while on an active trip. Complete the ride first."
+          );
 
-      const response = await api.patch(
-        "/api/captains/status",
-        {
-          status: newStatus,
-        },
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
+          return;
         }
-      );
 
-      console.log(
-        "Captain status:",
-        response.data
-      );
+        setLoading(true);
 
-      setIsOnline(
-        newStatus === "active"
-      );
+        const newStatus =
+          isOnline
+            ? "inactive"
+            : "active";
 
-      // If captain goes offline,
-      // clear old ride requests
-      if (newStatus === "inactive") {
-        setRideRequests([]);
+        const token =
+          localStorage.getItem(
+            "token"
+          );
+
+        if (!token) {
+
+          console.error(
+            "❌ Captain token not found"
+          );
+
+          return;
+        }
+
+        const response =
+          await api.patch(
+            "/api/captains/status",
+            {
+              status:
+                newStatus,
+            },
+            {
+              headers: {
+                Authorization:
+                  `Bearer ${token}`,
+              },
+            }
+          );
+
+        console.log(
+          "Captain status:",
+          response.data
+        );
+
+        setIsOnline(
+          newStatus === "active"
+        );
+
+        // ---------------------------------------------
+        // Clear ride requests when offline
+        // ---------------------------------------------
+
+        if (
+          newStatus ===
+          "inactive"
+        ) {
+
+          setRideRequests([]);
+        }
+
+      } catch (error) {
+
+        console.error(
+          "❌ Status update failed:",
+          error.response?.data ||
+            error
+        );
+
+      } finally {
+
+        setLoading(false);
       }
-    } catch (error) {
-      console.error(
-        "❌ Status update failed:",
-        error.response?.data || error
-      );
-    } finally {
-      setLoading(false);
-    }
-  };
+    };
 
   // ==================================================
   // GPS LOCATION
   // ==================================================
 
   useEffect(() => {
+
     if (!isOnline) {
+
       setLocation(null);
+
       return;
     }
 
-    if (!navigator.geolocation) {
+    if (
+      !navigator.geolocation
+    ) {
+
       console.error(
         "❌ Geolocation is not supported by this browser"
       );
@@ -357,9 +535,12 @@ const CaptainHome = () => {
     }
 
     const token =
-      localStorage.getItem("token");
+      localStorage.getItem(
+        "token"
+      );
 
     if (!token) {
+
       console.error(
         "❌ Captain token not found"
       );
@@ -373,7 +554,9 @@ const CaptainHome = () => {
 
     const watchId =
       navigator.geolocation.watchPosition(
+
         async (position) => {
+
           const latitude =
             position.coords.latitude;
 
@@ -394,6 +577,7 @@ const CaptainHome = () => {
           });
 
           try {
+
             const response =
               await api.patch(
                 "/api/captains/location",
@@ -403,7 +587,8 @@ const CaptainHome = () => {
                 },
                 {
                   headers: {
-                    Authorization: `Bearer ${token}`,
+                    Authorization:
+                      `Bearer ${token}`,
                   },
                 }
               );
@@ -412,40 +597,54 @@ const CaptainHome = () => {
               "📍 Location updated:",
               response.data
             );
+
           } catch (error) {
+
             console.error(
               "❌ Location update failed:",
-              error.response?.data || error
+              error.response?.data ||
+                error
             );
           }
         },
 
         (error) => {
+
           console.error(
             "❌ GPS Error:",
             error
           );
 
-          switch (error.code) {
+          switch (
+            error.code
+          ) {
+
             case error.PERMISSION_DENIED:
+
               console.error(
                 "❌ Location permission denied."
               );
+
               break;
 
             case error.POSITION_UNAVAILABLE:
+
               console.error(
                 "❌ Location unavailable."
               );
+
               break;
 
             case error.TIMEOUT:
+
               console.error(
                 "❌ Location request timed out."
               );
+
               break;
 
             default:
+
               console.error(
                 "❌ Unknown GPS error."
               );
@@ -453,13 +652,19 @@ const CaptainHome = () => {
         },
 
         {
-          enableHighAccuracy: true,
-          maximumAge: 5000,
-          timeout: 10000,
+          enableHighAccuracy:
+            true,
+
+          maximumAge:
+            5000,
+
+          timeout:
+            10000,
         }
       );
 
     return () => {
+
       navigator.geolocation.clearWatch(
         watchId
       );
@@ -468,163 +673,436 @@ const CaptainHome = () => {
         "📍 GPS tracking stopped"
       );
     };
+
   }, [isOnline]);
 
   // ==================================================
   // ACCEPT RIDE
   // ==================================================
 
-  const acceptRide = async (rideId) => {
-    console.log(
-      "✅ Accept ride:",
-      rideId
-    );
+  const acceptRide =
+    async (rideId) => {
 
-    setProcessingRideId(rideId);
-    setActionError(null);
-
-    const token =
-      localStorage.getItem("token");
-
-    if (!token) {
-      console.error(
-        "❌ Captain token not found"
-      );
-
-      setActionError(
-        "Authentication error. Please login again."
-      );
-
-      setProcessingRideId(null);
-
-      return;
-    }
-
-    try {
-      const response = await api.patch(
-        `/api/riders/${rideId}/accept`,
-        {},
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
+      console.log(
+        "================================="
       );
 
       console.log(
-        "✅ Ride accepted:",
-        response.data
+        "🚕 ACCEPTING RIDE"
       );
 
-      // Remove the accepted ride from the list
-      setRideRequests((prevRequests) =>
-        prevRequests.filter(
-          (ride) =>
-            ride.rideId !== rideId
-        )
+      console.log(
+        "Ride ID:",
+        rideId
       );
 
-      // Set the current ride so the captain
-      // can see the trip details and OTP
-      const acceptedRide = response.data.data;
+      console.log(
+        "================================="
+      );
 
-      const rideData = {
-        rideId: acceptedRide._id?.toString() || rideId,
-        pickup: acceptedRide.pickup,
-        destination: acceptedRide.destination,
-        distance: acceptedRide.distance,
-        duration: acceptedRide.duration,
-        fare: acceptedRide.fare,
-        vehicleType: acceptedRide.vehicleType,
-        otp: acceptedRide.otp,
-      };
-
-      setCurrentRide(rideData);
-      currentRideRef.current = rideData;
-
-      setRideStatus(acceptedRide.status || "accepted");
-    } catch (error) {
-      console.error(
-        "❌ Accept ride failed:",
-        error.response?.data || error
+      setProcessingRideId(
+        rideId
       );
 
       setActionError(
-        error.response?.data?.message ||
-          "Failed to accept ride. Please try again."
+        null
       );
-    } finally {
-      setProcessingRideId(null);
-    }
-  };
+
+      const token =
+        localStorage.getItem(
+          "token"
+        );
+
+      if (!token) {
+
+        console.error(
+          "❌ Captain token not found"
+        );
+
+        setActionError(
+          "Authentication error. Please login again."
+        );
+
+        setProcessingRideId(
+          null
+        );
+
+        return;
+      }
+
+      try {
+
+        const response =
+          await api.patch(
+            `/api/riders/${rideId}/accept`,
+            {},
+            {
+              headers: {
+                Authorization:
+                  `Bearer ${token}`,
+              },
+            }
+          );
+
+        console.log(
+          "================================="
+        );
+
+        console.log(
+          "✅ RIDE ACCEPTED"
+        );
+
+        console.log(
+          "Response:",
+          response.data
+        );
+
+        console.log(
+          "================================="
+        );
+
+        // ---------------------------------------------
+        // Remove accepted request
+        // ---------------------------------------------
+
+        setRideRequests(
+          (prevRequests) =>
+            prevRequests.filter(
+              (ride) =>
+                ride.rideId !==
+                rideId
+            )
+        );
+
+        // ---------------------------------------------
+        // Store accepted ride
+        // ---------------------------------------------
+
+        const acceptedRide =
+          response.data.data;
+
+        const rideData = {
+
+          rideId:
+            acceptedRide._id?.toString() ||
+            rideId,
+
+          pickup:
+            acceptedRide.pickup,
+
+          destination:
+            acceptedRide.destination,
+
+          distance:
+            acceptedRide.distance,
+
+          duration:
+            acceptedRide.duration,
+
+          fare:
+            acceptedRide.fare,
+
+          vehicleType:
+            acceptedRide.vehicleType,
+
+          otp:
+            acceptedRide.otp,
+
+          captain:
+            acceptedRide.captain,
+
+        };
+
+        setCurrentRide(
+          rideData
+        );
+
+        currentRideRef.current =
+          rideData;
+
+        setRideStatus(
+          acceptedRide.status ||
+            "accepted"
+        );
+
+      } catch (error) {
+
+        console.error(
+          "❌ Accept ride failed:",
+          error.response?.data ||
+            error
+        );
+
+        setActionError(
+          error.response?.data?.message ||
+            "Failed to accept ride. Please try again."
+        );
+
+      } finally {
+
+        setProcessingRideId(
+          null
+        );
+      }
+    };
 
   // ==================================================
   // REJECT RIDE
   // ==================================================
 
-  const rejectRide = async (rideId) => {
-    console.log(
-      "❌ Reject ride:",
-      rideId
-    );
+  const rejectRide =
+    async (rideId) => {
 
-    setProcessingRideId(rideId);
-    setActionError(null);
-
-    const token =
-      localStorage.getItem("token");
-
-    if (!token) {
-      console.error(
-        "❌ Captain token not found"
-      );
-
-      setActionError(
-        "Authentication error. Please login again."
-      );
-
-      setProcessingRideId(null);
-
-      return;
-    }
-
-    try {
-      const response = await api.patch(
-        `/api/riders/${rideId}/reject`,
-        {},
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
+      console.log(
+        "================================="
       );
 
       console.log(
-        "❌ Ride rejected:",
-        response.data
+        "❌ REJECTING RIDE"
       );
 
-      // Remove the rejected ride from the list
-      setRideRequests((prevRequests) =>
-        prevRequests.filter(
-          (ride) =>
-            ride.rideId !== rideId
-        )
+      console.log(
+        "Ride ID:",
+        rideId
       );
-    } catch (error) {
-      console.error(
-        "❌ Reject ride failed:",
-        error.response?.data || error
+
+      console.log(
+        "================================="
+      );
+
+      setProcessingRideId(
+        rideId
       );
 
       setActionError(
-        error.response?.data?.message ||
-          "Failed to reject ride. Please try again."
+        null
       );
-    } finally {
-      setProcessingRideId(null);
-    }
-  };
+
+      const token =
+        localStorage.getItem(
+          "token"
+        );
+
+      if (!token) {
+
+        console.error(
+          "❌ Captain token not found"
+        );
+
+        setActionError(
+          "Authentication error. Please login again."
+        );
+
+        setProcessingRideId(
+          null
+        );
+
+        return;
+      }
+
+      try {
+
+        const response =
+          await api.patch(
+            `/api/riders/${rideId}/reject`,
+            {},
+            {
+              headers: {
+                Authorization:
+                  `Bearer ${token}`,
+              },
+            }
+          );
+
+        console.log(
+          "❌ Ride rejected:",
+          response.data
+        );
+
+        setRideRequests(
+          (prevRequests) =>
+            prevRequests.filter(
+              (ride) =>
+                ride.rideId !==
+                rideId
+            )
+        );
+
+      } catch (error) {
+
+        console.error(
+          "❌ Reject ride failed:",
+          error.response?.data ||
+            error
+        );
+
+        setActionError(
+          error.response?.data?.message ||
+            "Failed to reject ride. Please try again."
+        );
+
+      } finally {
+
+        setProcessingRideId(
+          null
+        );
+      }
+    };
+
+  // ==================================================
+  // MARK RIDE ARRIVED
+  // ==================================================
+
+  const markRideArrived =
+    async () => {
+
+      if (
+        !currentRide?.rideId
+      ) {
+
+        console.error(
+          "❌ No current ride found"
+        );
+
+        setActionError(
+          "No active ride found."
+        );
+
+        return;
+      }
+
+      const token =
+        localStorage.getItem(
+          "token"
+        );
+
+      if (!token) {
+
+        console.error(
+          "❌ Captain token not found"
+        );
+
+        setActionError(
+          "Authentication error. Please login again."
+        );
+
+        return;
+      }
+
+      try {
+
+        setProcessingRideId(
+          currentRide.rideId
+        );
+
+        setActionError(
+          null
+        );
+
+        console.log(
+          "================================="
+        );
+
+        console.log(
+          "📍 MARKING RIDE ARRIVED"
+        );
+
+        console.log(
+          "Ride ID:",
+          currentRide.rideId
+        );
+
+        console.log(
+          "================================="
+        );
+
+        const response =
+          await api.patch(
+            `/api/riders/${currentRide.rideId}/arrived`,
+            {},
+            {
+              headers: {
+                Authorization:
+                  `Bearer ${token}`,
+              },
+            }
+          );
+
+        console.log(
+          "================================="
+        );
+
+        console.log(
+          "✅ CAPTAIN ARRIVED"
+        );
+
+        console.log(
+          "Response:",
+          response.data
+        );
+
+        console.log(
+          "================================="
+        );
+
+        const updatedRide =
+          response.data.data;
+
+        // ---------------------------------------------
+        // Update current ride
+        // ---------------------------------------------
+
+        setCurrentRide(
+          (prev) => ({
+            ...prev,
+
+            ...updatedRide,
+
+            rideId:
+              updatedRide._id?.toString() ||
+              prev.rideId,
+          })
+        );
+
+        currentRideRef.current =
+          {
+            ...currentRide,
+            ...updatedRide,
+            rideId:
+              updatedRide._id?.toString() ||
+              currentRide.rideId,
+          };
+
+        // ---------------------------------------------
+        // IMPORTANT
+        // Use backend status
+        // ---------------------------------------------
+
+        setRideStatus(
+          updatedRide.status ||
+            "arrived"
+        );
+
+      } catch (error) {
+
+        console.error(
+          "❌ Mark arrived failed:",
+          error.response?.data ||
+            error
+        );
+
+        setActionError(
+          error.response?.data?.message ||
+            "Failed to mark ride as arrived."
+        );
+
+      } finally {
+
+        setProcessingRideId(
+          null
+        );
+      }
+    };
 
   // ==================================================
   // UI
@@ -668,9 +1146,11 @@ const CaptainHome = () => {
                   : "text-red-500"
               }`}
             >
+
               {socketConnected
                 ? "Socket Connected"
                 : "Socket Disconnected"}
+
             </span>
 
           </div>
@@ -686,9 +1166,11 @@ const CaptainHome = () => {
               : "bg-gray-200 text-gray-600"
           }`}
         >
+
           {isOnline
             ? "ONLINE"
             : "OFFLINE"}
+
         </div>
 
       </div>
@@ -712,7 +1194,9 @@ const CaptainHome = () => {
         </p>
 
         <button
-          onClick={toggleOnlineStatus}
+          onClick={
+            toggleOnlineStatus
+          }
           disabled={loading}
           className={`w-full py-4 rounded-xl text-white font-semibold text-lg transition ${
             isOnline
@@ -736,10 +1220,11 @@ const CaptainHome = () => {
       </div>
 
       {/* ================================================
-          CURRENT RIDE (ACCEPTED TRIP)
+          CURRENT RIDE
       ================================================ */}
 
       {currentRide && (
+
         <div className="bg-white rounded-2xl shadow-md p-6 mb-5 border-2 border-green-400">
 
           <div className="flex justify-between items-center mb-5">
@@ -777,7 +1262,8 @@ const CaptainHome = () => {
             </p>
 
             <p className="font-medium">
-              {currentRide.pickup?.address || "Pickup location"}
+              {currentRide.pickup?.address ||
+                "Pickup location"}
             </p>
 
           </div>
@@ -791,7 +1277,8 @@ const CaptainHome = () => {
             </p>
 
             <p className="font-medium">
-              {currentRide.destination?.address || "Destination"}
+              {currentRide.destination?.address ||
+                "Destination"}
             </p>
 
           </div>
@@ -831,51 +1318,110 @@ const CaptainHome = () => {
               </p>
 
               <p className="font-semibold text-green-600">
-                ₹{currentRide.fare?.totalFare}
+                ₹
+                {currentRide.fare?.totalFare}
               </p>
 
             </div>
 
           </div>
 
-          {/* RIDE STATUS ACTIONS */}
+          {/* ACTION ERROR */}
+
+          {actionError && (
+
+            <div className="mb-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-sm">
+              ⚠️ {actionError}
+            </div>
+
+          )}
+
+          {/* ==========================================
+              RIDE ACTIONS
+          ========================================== */}
 
           <div className="flex gap-3">
 
-            {rideStatus === "accepted" && (
+            {/* ACCEPTED → ARRIVED */}
+
+            {rideStatus ===
+              "accepted" && (
+
               <button
-                onClick={() => setRideStatus("arrived")}
-                className="flex-1 bg-blue-500 hover:bg-blue-600 text-white py-3 rounded-xl font-semibold transition"
+                onClick={
+                  markRideArrived
+                }
+                disabled={
+                  processingRideId ===
+                  currentRide.rideId
+                }
+                className={`flex-1 text-white py-3 rounded-xl font-semibold transition ${
+                  processingRideId ===
+                  currentRide.rideId
+                    ? "bg-gray-400 cursor-not-allowed"
+                    : "bg-blue-500 hover:bg-blue-600"
+                }`}
               >
-                I've Arrived
+
+                {processingRideId ===
+                currentRide.rideId
+                  ? "Updating..."
+                  : "I've Arrived"}
+
               </button>
+
             )}
 
-            {rideStatus === "arrived" && (
+            {/* ARRIVED → START RIDE */}
+
+            {rideStatus ===
+              "arrived" && (
+
               <button
-                onClick={() => setRideStatus("ongoing")}
+                onClick={() => {
+                  console.log(
+                    "⚠️ OTP verification not implemented yet"
+                  );
+
+                  alert(
+                    "Next step: verify OTP before starting the ride."
+                  );
+                }}
                 className="flex-1 bg-indigo-500 hover:bg-indigo-600 text-white py-3 rounded-xl font-semibold transition"
               >
                 Start Ride
               </button>
+
             )}
 
-            {rideStatus === "ongoing" && (
+            {/* ONGOING → COMPLETE */}
+
+            {rideStatus ===
+              "ongoing" && (
+
               <button
                 onClick={() => {
-                  setCurrentRide(null);
-                  currentRideRef.current = null;
-                  setRideStatus(null);
+
+                  console.log(
+                    "⚠️ Complete ride API not implemented yet"
+                  );
+
+                  alert(
+                    "Complete Ride will be implemented next."
+                  );
+
                 }}
                 className="flex-1 bg-green-500 hover:bg-green-600 text-white py-3 rounded-xl font-semibold transition"
               >
                 Complete Ride
               </button>
+
             )}
 
           </div>
 
         </div>
+
       )}
 
       {/* ================================================
@@ -898,164 +1444,181 @@ const CaptainHome = () => {
 
           </div>
 
-          {/* ACTION ERROR MESSAGE */}
+          {/* ACTION ERROR */}
 
           {actionError && (
+
             <div className="mb-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-sm">
               ⚠️ {actionError}
             </div>
+
           )}
 
           <div className="space-y-4">
 
-            {rideRequests.map((ride) => {
+            {rideRequests.map(
+              (ride) => {
 
-              const isProcessing =
-                processingRideId === ride.rideId;
+                const isProcessing =
+                  processingRideId ===
+                  ride.rideId;
 
-              return (
-              <div
-                key={ride.rideId}
-                className={`border border-gray-200 rounded-xl p-5 ${
-                  isProcessing ? "opacity-60" : ""
-                }`}
-              >
+                return (
 
-                {/* VEHICLE */}
-
-                <div className="flex justify-between items-center mb-4">
-
-                  <div>
-
-                    <p className="text-sm text-gray-500">
-                      Vehicle Type
-                    </p>
-
-                    <p className="font-bold text-lg capitalize">
-                      {ride.vehicleType}
-                    </p>
-
-                  </div>
-
-                  <div className="text-right">
-
-                    <p className="text-sm text-gray-500">
-                      Fare
-                    </p>
-
-                    <p className="font-bold text-xl text-green-600">
-                      ₹{ride.fare?.totalFare}
-                    </p>
-
-                  </div>
-
-                </div>
-
-                {/* PICKUP */}
-
-                <div className="mb-4">
-
-                  <p className="text-sm text-gray-500">
-                    📍 Pickup
-                  </p>
-
-                  <p className="font-medium">
-                    {ride.pickup?.address ||
-                      "Pickup location"}
-                  </p>
-
-                </div>
-
-                {/* DESTINATION */}
-
-                <div className="mb-4">
-
-                  <p className="text-sm text-gray-500">
-                    🏁 Destination
-                  </p>
-
-                  <p className="font-medium">
-                    {ride.destination?.address ||
-                      "Destination"}
-                  </p>
-
-                </div>
-
-                {/* DISTANCE / DURATION */}
-
-                <div className="grid grid-cols-2 gap-3 mb-5">
-
-                  <div className="bg-gray-100 rounded-lg p-3">
-
-                    <p className="text-xs text-gray-500">
-                      Distance
-                    </p>
-
-                    <p className="font-semibold">
-                      {ride.distance} km
-                    </p>
-
-                  </div>
-
-                  <div className="bg-gray-100 rounded-lg p-3">
-
-                    <p className="text-xs text-gray-500">
-                      Duration
-                    </p>
-
-                    <p className="font-semibold">
-                      {ride.duration} min
-                    </p>
-
-                  </div>
-
-                </div>
-
-                {/* BUTTONS */}
-
-                <div className="flex gap-3">
-
-                  <button
-                    onClick={() =>
-                      acceptRide(
-                        ride.rideId
-                      )
-                    }
-                    disabled={isProcessing}
-                    className={`flex-1 text-white py-3 rounded-xl font-semibold transition ${
+                  <div
+                    key={ride.rideId}
+                    className={`border border-gray-200 rounded-xl p-5 ${
                       isProcessing
-                        ? "bg-gray-400 cursor-not-allowed"
-                        : "bg-green-500 hover:bg-green-600"
+                        ? "opacity-60"
+                        : ""
                     }`}
                   >
-                    {isProcessing
-                      ? "Processing..."
-                      : "Accept Ride"}
-                  </button>
 
-                  <button
-                    onClick={() =>
-                      rejectRide(
-                        ride.rideId
-                      )
-                    }
-                    disabled={isProcessing}
-                    className={`flex-1 text-white py-3 rounded-xl font-semibold transition ${
-                      isProcessing
-                        ? "bg-gray-400 cursor-not-allowed"
-                        : "bg-red-500 hover:bg-red-600"
-                    }`}
-                  >
-                    {isProcessing
-                      ? "Processing..."
-                      : "Reject"}
-                  </button>
+                    {/* VEHICLE */}
 
-                </div>
+                    <div className="flex justify-between items-center mb-4">
 
-              </div>
-              );
-            })}
+                      <div>
+
+                        <p className="text-sm text-gray-500">
+                          Vehicle Type
+                        </p>
+
+                        <p className="font-bold text-lg capitalize">
+                          {ride.vehicleType}
+                        </p>
+
+                      </div>
+
+                      <div className="text-right">
+
+                        <p className="text-sm text-gray-500">
+                          Fare
+                        </p>
+
+                        <p className="font-bold text-xl text-green-600">
+                          ₹
+                          {ride.fare?.totalFare}
+                        </p>
+
+                      </div>
+
+                    </div>
+
+                    {/* PICKUP */}
+
+                    <div className="mb-4">
+
+                      <p className="text-sm text-gray-500">
+                        📍 Pickup
+                      </p>
+
+                      <p className="font-medium">
+                        {ride.pickup?.address ||
+                          "Pickup location"}
+                      </p>
+
+                    </div>
+
+                    {/* DESTINATION */}
+
+                    <div className="mb-4">
+
+                      <p className="text-sm text-gray-500">
+                        🏁 Destination
+                      </p>
+
+                      <p className="font-medium">
+                        {ride.destination?.address ||
+                          "Destination"}
+                      </p>
+
+                    </div>
+
+                    {/* DISTANCE / DURATION */}
+
+                    <div className="grid grid-cols-2 gap-3 mb-5">
+
+                      <div className="bg-gray-100 rounded-lg p-3">
+
+                        <p className="text-xs text-gray-500">
+                          Distance
+                        </p>
+
+                        <p className="font-semibold">
+                          {ride.distance} km
+                        </p>
+
+                      </div>
+
+                      <div className="bg-gray-100 rounded-lg p-3">
+
+                        <p className="text-xs text-gray-500">
+                          Duration
+                        </p>
+
+                        <p className="font-semibold">
+                          {ride.duration} min
+                        </p>
+
+                      </div>
+
+                    </div>
+
+                    {/* BUTTONS */}
+
+                    <div className="flex gap-3">
+
+                      <button
+                        onClick={() =>
+                          acceptRide(
+                            ride.rideId
+                          )
+                        }
+                        disabled={
+                          isProcessing
+                        }
+                        className={`flex-1 text-white py-3 rounded-xl font-semibold transition ${
+                          isProcessing
+                            ? "bg-gray-400 cursor-not-allowed"
+                            : "bg-green-500 hover:bg-green-600"
+                        }`}
+                      >
+
+                        {isProcessing
+                          ? "Processing..."
+                          : "Accept Ride"}
+
+                      </button>
+
+                      <button
+                        onClick={() =>
+                          rejectRide(
+                            ride.rideId
+                          )
+                        }
+                        disabled={
+                          isProcessing
+                        }
+                        className={`flex-1 text-white py-3 rounded-xl font-semibold transition ${
+                          isProcessing
+                            ? "bg-gray-400 cursor-not-allowed"
+                            : "bg-red-500 hover:bg-red-600"
+                        }`}
+                      >
+
+                        {isProcessing
+                          ? "Processing..."
+                          : "Reject"}
+
+                      </button>
+
+                    </div>
+
+                  </div>
+                );
+              }
+            )}
 
           </div>
 
@@ -1068,29 +1631,31 @@ const CaptainHome = () => {
       ================================================ */}
 
       {isOnline &&
-        rideRequests.length === 0 && (
+        rideRequests.length ===
+          0 &&
+        !currentRide && (
 
-          <div className="bg-white rounded-2xl shadow-md p-6 mb-5">
+        <div className="bg-white rounded-2xl shadow-md p-6 mb-5">
 
-            <div className="text-center py-6">
+          <div className="text-center py-6">
 
-              <div className="text-4xl mb-3">
-                🚕
-              </div>
-
-              <h2 className="text-lg font-semibold">
-                Waiting for ride requests
-              </h2>
-
-              <p className="text-gray-500 text-sm mt-1">
-                Nearby ride requests will appear here.
-              </p>
-
+            <div className="text-4xl mb-3">
+              🚕
             </div>
+
+            <h2 className="text-lg font-semibold">
+              Waiting for ride requests
+            </h2>
+
+            <p className="text-gray-500 text-sm mt-1">
+              Nearby ride requests will appear here.
+            </p>
 
           </div>
 
-        )}
+        </div>
+
+      )}
 
       {/* ================================================
           LOCATION
@@ -1102,7 +1667,8 @@ const CaptainHome = () => {
           Current Location
         </h2>
 
-        {isOnline && location ? (
+        {isOnline &&
+        location ? (
 
           <div className="space-y-2">
 
@@ -1113,7 +1679,9 @@ const CaptainHome = () => {
               </span>
 
               <span className="font-semibold">
-                {location.latitude.toFixed(6)}
+                {location.latitude.toFixed(
+                  6
+                )}
               </span>
 
             </div>
@@ -1125,7 +1693,9 @@ const CaptainHome = () => {
               </span>
 
               <span className="font-semibold">
-                {location.longitude.toFixed(6)}
+                {location.longitude.toFixed(
+                  6
+                )}
               </span>
 
             </div>

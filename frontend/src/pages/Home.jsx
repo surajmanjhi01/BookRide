@@ -110,15 +110,90 @@ const Home = () => {
     const token =
       localStorage.getItem("user");
 
+    // ------------------------------------------------------------
+    // Check token
+    // ------------------------------------------------------------
+
     if (!token) {
       console.error(
         "❌ Rider token not found in localStorage"
       );
 
+      console.log(
+        "Available localStorage keys:",
+        Object.keys(localStorage)
+      );
+
       return;
     }
 
-    socket.auth = { token };
+    // ------------------------------------------------------------
+    // Decode JWT
+    // ------------------------------------------------------------
+
+    let userId;
+
+    try {
+      const tokenParts =
+        token.split(".");
+
+      if (tokenParts.length !== 3) {
+        throw new Error(
+          "Invalid JWT format"
+        );
+      }
+
+      const base64Payload =
+        tokenParts[1]
+          .replace(/-/g, "+")
+          .replace(/_/g, "/");
+
+      const payload =
+        JSON.parse(
+          atob(base64Payload)
+        );
+
+      userId = payload.id;
+
+      if (!userId) {
+        throw new Error(
+          "User ID not found inside JWT"
+        );
+      }
+
+      console.log(
+        "================================="
+      );
+
+      console.log(
+        "👤 RIDER JWT DECODED"
+      );
+
+      console.log(
+        "Rider ID:",
+        userId
+      );
+
+      console.log(
+        "================================="
+      );
+
+    } catch (error) {
+      console.error(
+        "❌ Failed to decode rider JWT:",
+        error
+      );
+
+      return;
+    }
+
+    // ------------------------------------------------------------
+    // Give JWT to Socket.IO
+    // ------------------------------------------------------------
+
+    socket.auth = {
+      token,
+    };
 
     console.log(
       "================================="
@@ -126,6 +201,11 @@ const Home = () => {
 
     console.log(
       "👤 RIDER SOCKET INITIALIZATION"
+    );
+
+    console.log(
+      "Rider ID:",
+      userId
     );
 
     console.log(
@@ -160,15 +240,43 @@ const Home = () => {
         socket.id
       );
 
+      console.log(
+        "Rider ID:",
+        userId
+      );
+
+      console.log(
+        "Socket connected:",
+        socket.connected
+      );
+
       setSocketConnected(true);
 
       // --------------------------------------------------------
-      // REGISTER RIDER WITH BACKEND
+      // IMPORTANT:
+      // Register rider with backend
       // --------------------------------------------------------
 
-      socket.emit("join-rider");
+      socket.emit(
+        "join-rider",
+        {
+          userId: userId.toString(),
+        }
+      );
 
-      console.log("✅ join-rider emitted for authenticated rider");
+      console.log(
+        "📡 join-rider emitted"
+      );
+
+      console.log(
+        "User ID sent:",
+        userId.toString()
+      );
+
+      console.log(
+        "Socket ID:",
+        socket.id
+      );
 
       console.log(
         "================================="
@@ -183,8 +291,25 @@ const Home = () => {
       reason
     ) => {
       console.log(
-        "❌ RIDER SOCKET DISCONNECTED:",
+        "================================="
+      );
+
+      console.log(
+        "❌ RIDER SOCKET DISCONNECTED"
+      );
+
+      console.log(
+        "Reason:",
         reason
+      );
+
+      console.log(
+        "Socket ID:",
+        socket.id
+      );
+
+      console.log(
+        "================================="
       );
 
       setSocketConnected(false);
@@ -198,8 +323,25 @@ const Home = () => {
       error
     ) => {
       console.error(
-        "❌ RIDER SOCKET ERROR:",
+        "================================="
+      );
+
+      console.error(
+        "❌ RIDER SOCKET CONNECTION ERROR"
+      );
+
+      console.error(
+        "Message:",
         error.message
+      );
+
+      console.error(
+        "Error:",
+        error
+      );
+
+      console.error(
+        "================================="
       );
 
       setSocketConnected(false);
@@ -221,6 +363,16 @@ const Home = () => {
       );
 
       console.log(
+        "Rider ID:",
+        userId
+      );
+
+      console.log(
+        "Socket ID:",
+        socket.id
+      );
+
+      console.log(
         "Ride accepted data:",
         data
       );
@@ -230,26 +382,123 @@ const Home = () => {
       );
 
       // --------------------------------------------------------
-      // Store accepted ride
+      // Backend sends:
+      //
+      // {
+      //   rideId,
+      //   captainId,
+      //   status,
+      //   captain: {...}
+      // }
+      //
       // --------------------------------------------------------
 
-      if (data?.ride) {
-        setRide(data.ride);
-
-        setRideStatus(
-          data.ride.status ||
-          "accepted"
-        );
-      } else {
-        setRide(data);
-
-        setRideStatus(
+      const acceptedRide = {
+        ...(data?.ride || data),
+        rideId:
+          data?.rideId ||
+          data?.ride?._id ||
+          data?.ride?.rideId,
+        captainId:
+          data?.captainId ||
+          data?.ride?.captainId,
+        status:
           data?.status ||
-          "accepted"
-        );
-      }
+          data?.ride?.status ||
+          "accepted",
+        captain:
+          data?.captain ||
+          data?.ride?.captain,
+      };
+
+      setRide(
+        acceptedRide
+      );
+
+      setRideStatus(
+        "accepted"
+      );
 
       setRideLoading(false);
+
+      console.log(
+        "✅ Rider UI updated with accepted ride"
+      );
+
+      console.log(
+        "Accepted Ride:",
+        acceptedRide
+      );
+    };
+
+    // ==========================================================
+    // CAPTAIN ARRIVED
+    // ==========================================================
+
+    const handleCaptainArrived = (
+      data
+    ) => {
+      console.log(
+        "================================="
+      );
+
+      console.log(
+        "📍 CAPTAIN ARRIVED"
+      );
+
+      console.log(
+        "Captain arrived data:",
+        data
+      );
+
+      console.log(
+        "================================="
+      );
+
+      setRideStatus(
+        data?.status ||
+        "arrived"
+      );
+
+      setRide((prev) => ({
+        ...prev,
+        ...data,
+      }));
+    };
+
+    // ==========================================================
+    // RIDE STARTED
+    // ==========================================================
+
+    const handleRideStarted = (
+      data
+    ) => {
+      console.log(
+        "================================="
+      );
+
+      console.log(
+        "🚀 RIDE STARTED"
+      );
+
+      console.log(
+        "Ride started data:",
+        data
+      );
+
+      console.log(
+        "================================="
+      );
+
+      setRideStatus(
+        data?.status ||
+        "ongoing"
+      );
+
+      setRide((prev) => ({
+        ...prev,
+        ...data,
+      }));
     };
 
     // ==========================================================
@@ -269,23 +518,45 @@ const Home = () => {
         data?.longitude === undefined
       ) {
         console.log(
-          "⚠️ Invalid captain location"
+          "⚠️ Invalid captain location received"
+        );
+
+        return;
+      }
+
+      const latitude =
+        Number(data.latitude);
+
+      const longitude =
+        Number(data.longitude);
+
+      if (
+        Number.isNaN(latitude) ||
+        Number.isNaN(longitude)
+      ) {
+        console.log(
+          "⚠️ Captain coordinates are not numbers"
         );
 
         return;
       }
 
       setCaptainLocation({
-        latitude:
-          Number(data.latitude),
-
-        longitude:
-          Number(data.longitude),
+        latitude,
+        longitude,
       });
+
+      console.log(
+        "✅ Captain location updated:",
+        {
+          latitude,
+          longitude,
+        }
+      );
     };
 
     // ==========================================================
-    // REGISTER LISTENERS
+    // REGISTER SOCKET LISTENERS
     // ==========================================================
 
     socket.on(
@@ -306,6 +577,16 @@ const Home = () => {
     socket.on(
       "ride-accepted",
       handleRideAccepted
+    );
+
+    socket.on(
+      "captain-arrived",
+      handleCaptainArrived
+    );
+
+    socket.on(
+      "ride-started",
+      handleRideStarted
     );
 
     socket.on(
@@ -333,6 +614,11 @@ const Home = () => {
       console.log(
         "✅ Rider socket already connected"
       );
+
+      // --------------------------------------------------------
+      // If socket was already connected,
+      // register rider immediately
+      // --------------------------------------------------------
 
       handleConnect();
     }
@@ -367,6 +653,16 @@ const Home = () => {
       );
 
       socket.off(
+        "captain-arrived",
+        handleCaptainArrived
+      );
+
+      socket.off(
+        "ride-started",
+        handleRideStarted
+      );
+
+      socket.off(
         "captain-location",
         handleCaptainLocation
       );
@@ -376,9 +672,11 @@ const Home = () => {
         handleCaptainLocation
       );
 
-      if (socket.connected) {
-        socket.disconnect();
-      }
+      // IMPORTANT:
+      // Do NOT call socket.disconnect() here.
+      //
+      // This socket is shared and disconnecting it
+      // can remove the rider from the backend map.
     };
 
   }, []);
@@ -412,6 +710,7 @@ const Home = () => {
           duration: 0.45,
           ease: "power3.out",
         });
+
       } else {
         gsap.to(panel, {
           y: "100%",
@@ -440,6 +739,15 @@ const Home = () => {
           "55vh";
       }
 
+      if (
+        rideStatus === "accepted" ||
+        rideStatus === "arrived" ||
+        rideStatus === "ongoing"
+      ) {
+        targetHeight =
+          "32vh";
+      }
+
       gsap.to(
         bottomSheet,
         {
@@ -454,6 +762,7 @@ const Home = () => {
       dependencies: [
         panelOpen,
         fare,
+        rideStatus,
       ],
     }
   );
@@ -603,7 +912,6 @@ const Home = () => {
         });
 
         setDestinationSuggestions([]);
-
       }
 
       setPanelOpen(false);
@@ -790,15 +1098,17 @@ const Home = () => {
         return;
       }
 
-      if (
-        !socket.connected
-      ) {
+      // --------------------------------------------------------
+      // Make sure rider socket is connected
+      // --------------------------------------------------------
+
+      if (!socket.connected) {
         alert(
           "Rider socket is not connected. Please wait a moment and try again."
         );
 
         console.error(
-          "❌ Cannot create ride: socket disconnected"
+          "❌ Cannot create ride: rider socket disconnected"
         );
 
         return;
@@ -820,16 +1130,22 @@ const Home = () => {
         }
 
         // ------------------------------------------------------
-        // Decode JWT
+        // Decode JWT for debugging
         // ------------------------------------------------------
 
         try {
 
+          const tokenParts =
+            token.split(".");
+
+          const base64Payload =
+            tokenParts[1]
+              .replace(/-/g, "+")
+              .replace(/_/g, "/");
+
           const payload =
             JSON.parse(
-              atob(
-                token.split(".")[1]
-              )
+              atob(base64Payload)
             );
 
           console.log(
@@ -869,7 +1185,7 @@ const Home = () => {
         ) {
 
           console.error(
-            "JWT decode error:",
+            "❌ JWT decode error:",
             decodeError
           );
         }
@@ -946,15 +1262,14 @@ const Home = () => {
         );
 
         // ------------------------------------------------------
-        // Store ride if backend returns it
+        // Store created ride
         // ------------------------------------------------------
 
         const createdRide =
           response.data?.data;
 
-        if (
-          createdRide
-        ) {
+        if (createdRide) {
+
           setRide(
             createdRide
           );
@@ -1125,6 +1440,7 @@ const Home = () => {
 
       {rideStatus ===
         "accepted" && (
+
         <div
           className="
             absolute
@@ -1146,6 +1462,72 @@ const Home = () => {
 
           <p className="text-sm mt-1">
             Your captain is on the way.
+          </p>
+
+        </div>
+      )}
+
+      {/* ======================================================
+          CAPTAIN ARRIVED MESSAGE
+      ====================================================== */}
+
+      {rideStatus ===
+        "arrived" && (
+
+        <div
+          className="
+            absolute
+            top-16
+            left-4
+            right-4
+            z-[100]
+            bg-blue-500
+            text-white
+            p-4
+            rounded-xl
+            shadow-xl
+          "
+        >
+
+          <p className="font-bold">
+            📍 Captain Has Arrived
+          </p>
+
+          <p className="text-sm mt-1">
+            Please provide your OTP to the captain.
+          </p>
+
+        </div>
+      )}
+
+      {/* ======================================================
+          RIDE STARTED MESSAGE
+      ====================================================== */}
+
+      {rideStatus ===
+        "ongoing" && (
+
+        <div
+          className="
+            absolute
+            top-16
+            left-4
+            right-4
+            z-[100]
+            bg-indigo-500
+            text-white
+            p-4
+            rounded-xl
+            shadow-xl
+          "
+        >
+
+          <p className="font-bold">
+            🚗 Ride Started
+          </p>
+
+          <p className="text-sm mt-1">
+            You are now on your way.
           </p>
 
         </div>
@@ -1212,7 +1594,7 @@ const Home = () => {
       >
 
         {/* ==================================================
-            ACTIVE RIDE
+            ACCEPTED RIDE
         ================================================== */}
 
         {rideStatus ===
@@ -1238,9 +1620,84 @@ const Home = () => {
                 Destination: {destination}
               </p>
 
+              {ride?.captain && (
+                <div className="mt-3">
+
+                  <p className="font-semibold">
+                    Captain
+                  </p>
+
+                  <p className="text-gray-600">
+                   {ride.captain.fullname?.firstname}{" "}
+  {ride.captain.fullname?.lastname}
+                  </p>
+
+                </div>
+              )}
+
               {captainLocation && (
                 <p className="text-sm text-gray-500 mt-3">
-                  Captain location is updating on the map.
+                  📍 Captain location is updating on the map.
+                </p>
+              )}
+
+            </div>
+
+          </div>
+
+        ) : rideStatus ===
+          "arrived" ? (
+
+          /* ==================================================
+             CAPTAIN ARRIVED
+          ================================================== */
+
+          <div>
+
+            <h2 className="text-2xl font-bold mb-5">
+              📍 Captain Arrived
+            </h2>
+
+            <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+
+              <p className="font-semibold text-blue-700">
+                Your captain has arrived.
+              </p>
+
+              <p className="text-gray-600 mt-2">
+                Please share your OTP with the captain.
+              </p>
+
+            </div>
+
+          </div>
+
+        ) : rideStatus ===
+          "ongoing" ? (
+
+          /* ==================================================
+             ONGOING RIDE
+          ================================================== */
+
+          <div>
+
+            <h2 className="text-2xl font-bold mb-5">
+              🚗 Ride In Progress
+            </h2>
+
+            <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-4">
+
+              <p className="font-semibold text-indigo-700">
+                Your ride has started.
+              </p>
+
+              <p className="text-gray-600 mt-2">
+                Destination: {destination}
+              </p>
+
+              {captainLocation && (
+                <p className="text-sm text-gray-500 mt-3">
+                  📍 Captain location is updating on the map.
                 </p>
               )}
 
@@ -1268,6 +1725,10 @@ const Home = () => {
             createRide={
               createRide
             }
+
+            rideLoading={
+              rideLoading
+            }
           />
 
         ) : (
@@ -1282,7 +1743,9 @@ const Home = () => {
               Where to?
             </h2>
 
-            {/* Pickup */}
+            {/* ------------------------------------------------
+                PICKUP
+            ------------------------------------------------ */}
 
             <input
               type="text"
@@ -1318,7 +1781,9 @@ const Home = () => {
               "
             />
 
-            {/* Destination */}
+            {/* ------------------------------------------------
+                DESTINATION
+            ------------------------------------------------ */}
 
             <input
               type="text"
@@ -1355,7 +1820,9 @@ const Home = () => {
               "
             />
 
-            {/* Distance */}
+            {/* ------------------------------------------------
+                DISTANCE / DURATION
+            ------------------------------------------------ */}
 
             {distance !== null &&
               duration !== null && (

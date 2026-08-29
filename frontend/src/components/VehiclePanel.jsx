@@ -5,6 +5,7 @@ const VehiclePanel = ({
   selectedVehicle,
   setSelectedVehicle,
   createRide,
+  rideLoading,
 }) => {
   if (!fare) return null;
 
@@ -68,14 +69,7 @@ const VehiclePanel = ({
       {vehicles.map((vehicle) => (
         <div
           key={vehicle.type}
-          onClick={() => {
-            console.log(
-              "Vehicle selected:",
-              vehicle.type
-            );
-
-            setSelectedVehicle(vehicle.type);
-          }}
+          onClick={() => setSelectedVehicle(vehicle.type)}
           className={`border rounded-xl p-4 mb-3 flex justify-between items-center cursor-pointer transition
           ${
             selectedVehicle === vehicle.type
@@ -118,10 +112,10 @@ const VehiclePanel = ({
       <button
         type="button"
         onClick={handleConfirmRide}
-        disabled={!selectedVehicle}
+        disabled={!selectedVehicle || rideLoading}
         className={`w-full py-4 rounded-xl text-lg font-semibold mt-4 transition
           ${
-            selectedVehicle
+            selectedVehicle && !rideLoading
               ? "bg-black text-white hover:bg-gray-800"
               : "bg-gray-300 text-gray-500 cursor-not-allowed"
           }`}
