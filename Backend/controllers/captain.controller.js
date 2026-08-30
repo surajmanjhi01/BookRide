@@ -247,6 +247,51 @@ exports.updateLocation = async (req, res) => {
   }
 };
 
+// ==================================================
+// GET ACTIVE RIDE
+// ==================================================
+
+exports.getActiveRide = async (req, res) => {
+  try {
+    if (!req.captain || !req.captain._id) {
+      return res.status(401).json({
+        success: false,
+        message: "Captain authentication required.",
+      });
+    }
+
+    const ride = await Ride.findOne({
+      captain: req.captain._id,
+      status: {
+        $in: [
+          "accepted",
+          "arrived",
+          "ongoing",
+        ],
+      },
+    }).select("-otp");
+
+    return res.status(200).json({
+      success: true,
+      message: ride
+        ? "Active ride found"
+        : "No active ride",
+      data: ride,
+    });
+
+  } catch (error) {
+    console.error(
+      "❌ Get Active Ride Error:",
+      error
+    );
+
+    return res.status(400).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+
 exports.getNearbyCaptains = async (req, res) => {
   try {
     const { lng, lat } = req.query;

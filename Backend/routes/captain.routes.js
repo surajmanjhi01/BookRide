@@ -16,4 +16,9 @@ router.patch(
   authMiddleware.authCaptain,
   captainController.updateStatus
 );
+router.get(
+  "/active-ride",
+  authMiddleware.authCaptain,
+  captainController.getActiveRide
+);
 module.exports=router;
