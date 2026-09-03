@@ -163,3 +163,37 @@ exports.verifyOTP = async ({
 
   return ride;
 };
+
+// ==================================================
+// COMPLETE RIDE
+// ==================================================
+
+exports.completeRide = async (
+  rideId,
+  captainId
+) => {
+  const ride = await Ride.findOneAndUpdate(
+    {
+      _id: rideId,
+      captain: captainId,
+      status: "ongoing",
+    },
+    {
+      $set: {
+        status: "completed",
+      },
+    },
+    {
+      returnDocument: "after",
+    }
+  );
+
+  if (!ride) {
+    throw new Error(
+      "Ride is no longer available or has already been completed."
+    );
+  }
+
+  return ride;
+};
+

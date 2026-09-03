@@ -72,6 +72,9 @@ const Home = () => {
   const [ride, setRide] =
     useState(null);
 
+  const [rideOtp, setRideOtp] =
+    useState("");
+
   const [rideStatus, setRideStatus] =
     useState(null);
 
@@ -741,6 +744,7 @@ const Home = () => {
 
       if (
         rideStatus === "accepted" ||
+        rideStatus === "requested" ||
         rideStatus === "arrived" ||
         rideStatus === "ongoing"
       ) {
@@ -1278,7 +1282,17 @@ const Home = () => {
             createdRide.status ||
             "requested"
           );
+
+          // Store the OTP so it can be shown to the rider
+          // when the captain arrives
+          setRideOtp(
+            createdRide.otp || ""
+          );
         }
+
+        // Reset loading so the confirm button / UI
+        // is not stuck in the disabled state.
+        setRideLoading(false);
 
       } catch (error) {
 
@@ -1435,6 +1449,39 @@ const Home = () => {
       </div>
 
       {/* ======================================================
+          RIDE REQUESTED MESSAGE
+      ====================================================== */}
+
+      {rideStatus ===
+        "requested" && (
+
+        <div
+          className="
+            absolute
+            top-16
+            left-4
+            right-4
+            z-[100]
+            bg-yellow-500
+            text-white
+            p-4
+            rounded-xl
+            shadow-xl
+          "
+        >
+
+          <p className="font-bold">
+            🚕 Searching for a Captain
+          </p>
+
+          <p className="text-sm mt-1">
+            Your ride request has been sent to nearby captains.
+          </p>
+
+        </div>
+      )}
+
+      {/* ======================================================
           RIDE ACCEPTED MESSAGE
       ====================================================== */}
 
@@ -1494,8 +1541,14 @@ const Home = () => {
           </p>
 
           <p className="text-sm mt-1">
-            Please provide your OTP to the captain.
+            Captain has arrived. Please provide your OTP to the captain.
           </p>
+
+          {rideOtp && (
+            <p className="mt-3 inline-block bg-white text-blue-700 px-4 py-2 rounded-lg text-2xl font-bold tracking-widest">
+              {rideOtp}
+            </p>
+          )}
 
         </div>
       )}
@@ -1646,6 +1699,37 @@ const Home = () => {
           </div>
 
         ) : rideStatus ===
+          "requested" ? (
+
+          /* ==================================================
+             RIDE REQUESTED / SEARCHING FOR CAPTAIN
+          ================================================== */
+
+          <div>
+
+            <h2 className="text-2xl font-bold mb-5">
+              🚕 Searching for Captain
+            </h2>
+
+            <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4">
+
+              <p className="font-semibold text-yellow-700">
+                Ride requested. Looking for nearby captains...
+              </p>
+
+              <p className="text-gray-600 mt-2">
+                Pickup: {pickup}
+              </p>
+
+              <p className="text-gray-600 mt-1">
+                Destination: {destination}
+              </p>
+
+            </div>
+
+          </div>
+
+        ) : rideStatus ===
           "arrived" ? (
 
           /* ==================================================
@@ -1661,12 +1745,18 @@ const Home = () => {
             <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
 
               <p className="font-semibold text-blue-700">
-                Your captain has arrived.
+                Captain has arrived. Please provide your OTP to the captain.
               </p>
 
               <p className="text-gray-600 mt-2">
-                Please share your OTP with the captain.
+                Share this OTP with the captain:
               </p>
+
+              {rideOtp && (
+                <p className="mt-3 text-4xl font-bold tracking-widest text-blue-700">
+                  {rideOtp}
+                </p>
+              )}
 
             </div>
 
@@ -1682,7 +1772,7 @@ const Home = () => {
           <div>
 
             <h2 className="text-2xl font-bold mb-5">
-              🚗 Ride In Progress
+              🚗 Ride Started
             </h2>
 
             <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-4">

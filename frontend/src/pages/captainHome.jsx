@@ -55,6 +55,9 @@ const CaptainHome = () => {
   const [actionError, setActionError] =
     useState(null);
 
+  const [otpInput, setOtpInput] =
+    useState("");
+
   // ==================================================
   // REFS
   // ==================================================
@@ -389,6 +392,140 @@ const CaptainHome = () => {
       console.log(
         "🧹 Captain socket listeners removed"
       );
+    };
+
+  }, []);
+
+  // ==================================================
+  // RESTORE ACTIVE RIDE AFTER PAGE REFRESH
+  // ==================================================
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const restoreActiveRide =
+      async () => {
+
+        const token =
+          localStorage.getItem(
+            "token"
+          );
+
+        if (!token) {
+          return;
+        }
+
+        try {
+
+          const response =
+            await api.get(
+              "/api/captains/active-ride",
+              {
+                headers: {
+                  Authorization:
+                    `Bearer ${token}`,
+                },
+              }
+            );
+
+          const activeRide =
+            response.data?.data;
+
+          if (
+            cancelled ||
+            !activeRide
+          ) {
+            return;
+          }
+
+          // ---------------------------------------------
+          // Defensive:
+          // Never restore a ride that is hours old and was
+          // never completed/cancelled. Otherwise the captain
+          // dashboard would permanently show a ghost ride and
+          // block every new ride request (the frontend ignores
+          // requests while currentRideRef.current is set).
+          // ---------------------------------------------
+
+          const STALE_RIDE_MS =
+            6 * 60 * 60 * 1000;
+
+          if (activeRide.createdAt) {
+
+            const ageMs =
+              Date.now() -
+              new Date(
+                activeRide.createdAt
+              ).getTime();
+
+            if (ageMs > STALE_RIDE_MS) {
+
+              console.log(
+                "⚠️ Ignoring stale active ride created at:",
+                new Date(
+                  activeRide.createdAt
+                ).toISOString()
+              );
+
+              return;
+            }
+          }
+
+          console.log(
+            "🔄 Restored active ride:",
+            activeRide._id?.toString()
+          );
+
+          console.log(
+            "Ride status:",
+            activeRide.status
+          );
+
+          // ---------------------------------------------
+          // SECURITY:
+          // Never store the OTP on the captain side even
+          // when restoring a ride
+          // ---------------------------------------------
+
+          const safeRide =
+            { ...activeRide };
+
+          delete safeRide.otp;
+
+          const restoredRide = {
+            ...safeRide,
+
+            rideId:
+              activeRide._id?.toString() ||
+              activeRide.rideId,
+          };
+
+          setCurrentRide(
+            restoredRide
+          );
+
+          currentRideRef.current =
+            restoredRide;
+
+          setRideStatus(
+            activeRide.status ||
+              "accepted"
+          );
+
+        } catch (error) {
+
+          console.error(
+            "❌ Restore active ride failed:",
+            error.response?.data ||
+              error
+          );
+        }
+      };
+
+    restoreActiveRide();
+
+    return () => {
+      cancelled = true;
     };
 
   }, []);
@@ -805,8 +942,8 @@ const CaptainHome = () => {
           vehicleType:
             acceptedRide.vehicleType,
 
-          otp:
-            acceptedRide.otp,
+          status:
+            acceptedRide.status,
 
           captain:
             acceptedRide.captain,
@@ -1049,6 +1186,18 @@ const CaptainHome = () => {
           response.data.data;
 
         // ---------------------------------------------
+        // SECURITY:
+        // The backend returns the full ride document,
+        // which includes the OTP. Never store it on the
+        // captain side - strip it out.
+        // ---------------------------------------------
+
+        const safeUpdatedRide =
+          { ...updatedRide };
+
+        delete safeUpdatedRide.otp;
+
+        // ---------------------------------------------
         // Update current ride
         // ---------------------------------------------
 
@@ -1056,7 +1205,7 @@ const CaptainHome = () => {
           (prev) => ({
             ...prev,
 
-            ...updatedRide,
+            ...safeUpdatedRide,
 
             rideId:
               updatedRide._id?.toString() ||
@@ -1067,7 +1216,7 @@ const CaptainHome = () => {
         currentRideRef.current =
           {
             ...currentRide,
-            ...updatedRide,
+            ...safeUpdatedRide,
             rideId:
               updatedRide._id?.toString() ||
               currentRide.rideId,
@@ -1094,6 +1243,315 @@ const CaptainHome = () => {
         setActionError(
           error.response?.data?.message ||
             "Failed to mark ride as arrived."
+        );
+
+      } finally {
+
+        setProcessingRideId(
+          null
+        );
+      }
+    };
+
+  // ==================================================
+  // VERIFY RIDE OTP
+  // ==================================================
+
+  const verifyRideOtp =
+    async () => {
+
+      if (
+        !currentRide?.rideId
+      ) {
+
+        console.error(
+          "❌ No current ride found"
+        );
+
+        setActionError(
+          "No active ride found."
+        );
+
+        return;
+      }
+
+      if (
+        !otpInput ||
+        otpInput.length !== 4
+      ) {
+
+        setActionError(
+          "Please enter the 4-digit OTP."
+        );
+
+        return;
+      }
+
+      const token =
+        localStorage.getItem(
+          "token"
+        );
+
+      if (!token) {
+
+        console.error(
+          "❌ Captain token not found"
+        );
+
+        setActionError(
+          "Authentication error. Please login again."
+        );
+
+        return;
+      }
+
+      try {
+
+        setProcessingRideId(
+          currentRide.rideId
+        );
+
+        setActionError(
+          null
+        );
+
+        console.log(
+          "================================="
+        );
+
+        console.log(
+          "🔑 VERIFYING RIDE OTP"
+        );
+
+        console.log(
+          "Ride ID:",
+          currentRide.rideId
+        );
+
+        console.log(
+          "================================="
+        );
+
+        const response =
+          await api.post(
+            `/api/riders/${currentRide.rideId}/verify-otp`,
+            {
+              otp: otpInput,
+            },
+            {
+              headers: {
+                Authorization:
+                  `Bearer ${token}`,
+              },
+            }
+          );
+
+        console.log(
+          "================================="
+        );
+
+        console.log(
+          "✅ OTP VERIFIED - RIDE STARTED"
+        );
+
+        console.log(
+          "Response:",
+          response.data
+        );
+
+        console.log(
+          "================================="
+        );
+
+        const updatedRide =
+          response.data.data;
+
+        // ---------------------------------------------
+        // SECURITY:
+        // Strip OTP from the response before storing it
+        // ---------------------------------------------
+
+        const safeUpdatedRide =
+          { ...updatedRide };
+
+        delete safeUpdatedRide.otp;
+
+        setCurrentRide(
+          (prev) => ({
+            ...prev,
+
+            ...safeUpdatedRide,
+
+            rideId:
+              updatedRide._id?.toString() ||
+              prev.rideId,
+          })
+        );
+
+        currentRideRef.current =
+          {
+            ...currentRide,
+            ...safeUpdatedRide,
+            rideId:
+              updatedRide._id?.toString() ||
+              currentRide.rideId,
+          };
+
+        // ---------------------------------------------
+        // IMPORTANT:
+        // Use backend status ("ongoing")
+        // ---------------------------------------------
+
+        setRideStatus(
+          updatedRide.status ||
+            "ongoing"
+        );
+
+        // Clear the OTP input
+        setOtpInput("");
+
+      } catch (error) {
+
+        console.error(
+          "❌ OTP verification failed:",
+          error.response?.data ||
+            error
+        );
+
+        // ---------------------------------------------
+        // Keep the ride in "arrived" state and show the
+        // backend error message
+        // ---------------------------------------------
+
+        setActionError(
+          error.response?.data?.message ||
+            "Invalid OTP. Please try again."
+        );
+
+      } finally {
+
+        setProcessingRideId(
+          null
+        );
+      }
+    };
+
+  // ==================================================
+  // COMPLETE RIDE
+  // ==================================================
+
+  const completeRide =
+    async () => {
+
+      if (
+        !currentRide?.rideId
+      ) {
+
+        console.error(
+          "❌ No current ride found"
+        );
+
+        setActionError(
+          "No current ride found."
+        );
+
+        return;
+      }
+
+      const token =
+        localStorage.getItem(
+          "token"
+        );
+
+      if (!token) {
+
+        console.error(
+          "❌ Captain token not found"
+        );
+
+        setActionError(
+          "Authentication error. Please login again."
+        );
+
+        return;
+      }
+
+      try {
+
+        setProcessingRideId(
+          currentRide.rideId
+        );
+
+        setActionError(
+          null
+        );
+
+        console.log(
+          "================================="
+        );
+
+        console.log(
+          "🏁 COMPLETING RIDE"
+        );
+
+        console.log(
+          "Ride ID:",
+          currentRide.rideId
+        );
+
+        console.log(
+          "================================="
+        );
+
+        const response =
+          await api.patch(
+            `/api/riders/${currentRide.rideId}/complete`,
+            {},
+            {
+              headers: {
+                Authorization:
+                  `Bearer ${token}`,
+              },
+            }
+          );
+
+        console.log(
+          "✅ Ride completed:",
+          response.data
+        );
+
+        // -----------------------------------------
+        // Clear active ride.
+        // The backend is the source of truth and has
+        // already moved the ride to "completed".
+        // -----------------------------------------
+
+        setCurrentRide(null);
+
+        currentRideRef.current =
+          null;
+
+        setRideStatus(null);
+
+        // Clear any leftover ride requests so the
+        // captain sees fresh ones.
+        setRideRequests([]);
+
+        console.log(
+          "🚕 Captain is now available for new rides"
+        );
+
+      } catch (error) {
+
+        console.error(
+          "❌ Complete ride failed:",
+          error.response?.data ||
+            error
+        );
+
+        setActionError(
+          error.response?.data?.message ||
+            "Failed to complete ride."
         );
 
       } finally {
@@ -1234,22 +1692,9 @@ const CaptainHome = () => {
             </h2>
 
             <span className="bg-green-100 text-green-700 px-3 py-1 rounded-full text-sm font-semibold uppercase">
-              {rideStatus}
+              {rideStatus ||
+                currentRide?.status}
             </span>
-
-          </div>
-
-          {/* OTP */}
-
-          <div className="bg-green-50 border border-green-200 rounded-xl p-4 mb-5 text-center">
-
-            <p className="text-sm text-gray-600 mb-1">
-              Share this OTP with the rider
-            </p>
-
-            <p className="text-4xl font-bold tracking-widest text-green-700">
-              {currentRide.otp}
-            </p>
 
           </div>
 
@@ -1344,8 +1789,10 @@ const CaptainHome = () => {
 
             {/* ACCEPTED → ARRIVED */}
 
-            {rideStatus ===
-              "accepted" && (
+            {(rideStatus ===
+              "accepted" ||
+              currentRide?.status ===
+                "accepted") && (
 
               <button
                 onClick={
@@ -1372,48 +1819,87 @@ const CaptainHome = () => {
 
             )}
 
-            {/* ARRIVED → START RIDE */}
+            {/* ARRIVED → VERIFY OTP & START */}
 
-            {rideStatus ===
-              "arrived" && (
+            {(rideStatus ===
+              "arrived" ||
+              currentRide?.status ===
+                "arrived") && (
 
-              <button
-                onClick={() => {
-                  console.log(
-                    "⚠️ OTP verification not implemented yet"
-                  );
+              <div className="w-full">
 
-                  alert(
-                    "Next step: verify OTP before starting the ride."
-                  );
-                }}
-                className="flex-1 bg-indigo-500 hover:bg-indigo-600 text-white py-3 rounded-xl font-semibold transition"
-              >
-                Start Ride
-              </button>
+                <p className="text-sm text-gray-600 mb-2">
+                  Ask the rider for the 4-digit OTP and enter it below.
+                </p>
+
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  maxLength={4}
+                  placeholder="Enter 4-digit OTP"
+                  value={otpInput}
+                  onChange={(e) =>
+                    setOtpInput(
+                      e.target.value.replace(
+                        /\D/g,
+                        ""
+                      )
+                    )
+                  }
+                  className="w-full border border-gray-300 rounded-xl px-4 py-3 mb-3 text-center text-2xl font-bold tracking-widest outline-none focus:border-indigo-500"
+                />
+
+                <button
+                  onClick={verifyRideOtp}
+                  disabled={
+                    processingRideId ===
+                    currentRide.rideId ||
+                    otpInput.length !== 4
+                  }
+                  className={`w-full text-white py-3 rounded-xl font-semibold transition ${
+                    processingRideId ===
+                    currentRide.rideId ||
+                    otpInput.length !== 4
+                      ? "bg-gray-400 cursor-not-allowed"
+                      : "bg-indigo-500 hover:bg-indigo-600"
+                  }`}
+                >
+                  {processingRideId ===
+                  currentRide.rideId
+                    ? "Verifying..."
+                    : "Verify OTP & Start Ride"}
+                </button>
+
+              </div>
 
             )}
 
             {/* ONGOING → COMPLETE */}
 
-            {rideStatus ===
-              "ongoing" && (
+            {(rideStatus ===
+              "ongoing" ||
+              currentRide?.status ===
+                "ongoing") && (
 
               <button
-                onClick={() => {
-
-                  console.log(
-                    "⚠️ Complete ride API not implemented yet"
-                  );
-
-                  alert(
-                    "Complete Ride will be implemented next."
-                  );
-
-                }}
-                className="flex-1 bg-green-500 hover:bg-green-600 text-white py-3 rounded-xl font-semibold transition"
+                onClick={completeRide}
+                disabled={
+                  processingRideId ===
+                  currentRide?.rideId
+                }
+                className={`flex-1 text-white py-3 rounded-xl font-semibold transition ${
+                  processingRideId ===
+                  currentRide?.rideId
+                    ? "bg-gray-400 cursor-not-allowed"
+                    : "bg-green-500 hover:bg-green-600"
+                }`}
               >
-                Complete Ride
+
+                {processingRideId ===
+                currentRide?.rideId
+                  ? "Completing..."
+                  : "Complete Ride"}
+
               </button>
 
             )}

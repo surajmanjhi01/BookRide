@@ -35,4 +35,9 @@ router.post(
   authMiddleware.authCaptain,
   rideController.verifyOTP
 );
+router.patch(
+  "/:rideId/complete",
+  authMiddleware.authCaptain,
+  rideController.completeRide
+);
 module.exports = router;

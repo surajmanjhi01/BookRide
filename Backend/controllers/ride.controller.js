@@ -976,3 +976,117 @@ exports.verifyOTP =
       });
     }
   };
+
+exports.completeRide = async (
+  req,
+  res
+) => {
+  try {
+    const { rideId } = req.params;
+
+    if (!rideId) {
+      return res.status(400).json({
+        success: false,
+        message: "Ride ID is required",
+      });
+    }
+
+    if (
+      !req.captain ||
+      !req.captain._id
+    ) {
+      return res.status(401).json({
+        success: false,
+        message:
+          "Captain authentication required",
+      });
+    }
+
+    const captainId =
+      req.captain._id;
+
+    console.log(
+      `🏁 Captain ${captainId} completing ride ${rideId}`
+    );
+
+    // ------------------------------------------
+    // COMPLETE RIDE
+    // ------------------------------------------
+
+    const ride =
+      await rideService.completeRide(
+        rideId,
+        captainId
+      );
+
+    console.log(
+      `✅ Ride ${rideId} completed successfully`
+    );
+
+    // ------------------------------------------
+    // SOCKET.IO
+    // ------------------------------------------
+
+    const io =
+      req.app.get("io");
+
+    const userSockets =
+      req.app.get("userSockets");
+
+    if (
+      io &&
+      userSockets &&
+      ride.user
+    ) {
+      const userId =
+        ride.user.toString();
+
+      const userSocketId =
+        userSockets.get(userId);
+
+      if (userSocketId) {
+        io.to(userSocketId).emit(
+          "ride-completed",
+          {
+            rideId:
+              ride._id.toString(),
+
+            status:
+              ride.status,
+
+            fare:
+              ride.fare,
+          }
+        );
+
+        console.log(
+          `📡 ride-completed sent to rider ${userId}`
+        );
+      } else {
+        console.log(
+          `⚠️ Rider ${userId} has no active socket`
+        );
+      }
+    }
+
+    return res.status(200).json({
+      success: true,
+      message:
+        "Ride completed successfully",
+      data: ride,
+    });
+
+  } catch (error) {
+
+    console.error(
+      "❌ Complete Ride Error:",
+      error
+    );
+
+    return res.status(400).json({
+      success: false,
+      message:
+        error.message,
+    });
+  }
+};

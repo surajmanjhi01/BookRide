@@ -4,14 +4,36 @@ const api = axios.create({
   baseURL: import.meta.env.VITE_BASE_URL,
 });
 
-// Automatically attach JWT token
+// Automatically attach JWT token (rider default).
+//
+// IMPORTANT:
+// Only fill in the Authorization header when the caller did NOT
+// already provide one explicitly. CaptainHome.jsx always passes the
+// captain's own JWT in the request config
+// (`headers: { Authorization: Bearer <captain-token> }`).
+// Overwriting it here with the rider token ("user") made every
+// captain API call fail with 401 (authCaptain looks up the rider's
+// _id in the captains collection and finds no captain), so the
+// captain could never go online / store location / receive rides.
 api.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem("user");
+    const explicitAuth = config.headers?.get
+      ? config.headers.get("Authorization")
+      : config.headers?.Authorization;
 
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
+    if (!explicitAuth) {
+      const token = localStorage.getItem("user");
+
+      if (token) {
+        config.headers.Authorization = `Bearer ${token}`;
+      }
     }
+
+    console.log(
+      `[axios] ${(config.method || "?").toUpperCase()} ${config.url} → auth: ${
+        explicitAuth ? "explicit-header" : localStorage.getItem("user") ? "user-token" : "none"
+      }`
+    );
 
     return config;
   },

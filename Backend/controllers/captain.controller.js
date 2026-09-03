@@ -269,6 +269,17 @@ exports.getActiveRide = async (req, res) => {
           "ongoing",
         ],
       },
+      // Defensive:
+      // Ignore abandoned rides that were never completed or
+      // cancelled (e.g. leftovers from interrupted testing).
+      // Without this, an ancient "accepted"/"arrived" ride is
+      // restored on every page load, shows a ghost ride card on
+      // the captain dashboard, and blocks ALL new ride requests.
+      createdAt: {
+        $gte: new Date(
+          Date.now() - 6 * 60 * 60 * 1000
+        ),
+      },
     }).select("-otp");
 
     return res.status(200).json({
