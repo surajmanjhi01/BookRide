@@ -188,7 +188,7 @@ const Home = () => {
 
       if (tokenParts.length !== 3) {
         throw new Error(
-          "Invalid JWT format"
+          "Invalid JWT  format"
         );
       }
 
