@@ -20,4 +20,9 @@ router.get(
     // authMiddleware.authUser,
     mapController.searchPlaces
 );
+router.get(
+    "/reverse-geocode",
+    // authMiddleware.authUser,
+    mapController.reverseGeocode
+);
 module.exports=router;

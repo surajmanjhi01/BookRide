@@ -107,7 +107,36 @@ exports.searchPlaces=async(req,res)=>{
             data:places
         });
     } catch (error) {
-        res.status(500).json({
+        res.status(error.status || 500).json({
+            success: false,
+            message: error.message
+        });
+    }
+}
+
+exports.reverseGeocode = async (req, res) => {
+    try {
+        const { lat, lng } = req.query;
+
+        if (lat === undefined || lng === undefined) {
+            return res.status(400).json({
+                success: false,
+                message: "Latitude and longitude are required"
+            });
+        }
+
+        const result = await mapsService.reverseGeocode(
+            Number(lat),
+            Number(lng)
+        );
+
+        return res.status(200).json({
+            success: true,
+            data: result
+        });
+
+    } catch (error) {
+        return res.status(error.status || 500).json({
             success: false,
             message: error.message
         });

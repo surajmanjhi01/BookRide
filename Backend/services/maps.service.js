@@ -4,7 +4,7 @@ exports.getCoordinates = async (address) => {
     try {
 
         const response = await axios.get(
-            "https://api.openrouteservice.org/geocode/search",
+            "https://api.heigit.org/pelias/v1/search",
             {
                 params: {
                     api_key: process.env.ORS_API_KEY,
@@ -35,7 +35,7 @@ const mapsService = require("../services/maps.service");
 exports.getDistanceAndTime = async (pickup, destination) => {
     try {
         const response = await axios.post(
-            "https://api.openrouteservice.org/v2/directions/driving-car",
+            "https://api.heigit.org/openrouteservice/v2/directions/driving-car",
             {
                 coordinates: [
                     [pickup.lng, pickup.lat],
@@ -81,15 +81,31 @@ exports.getFare=async(pickup,destination)=>{
 };
 
 exports.searchPlaces=async(query)=>{
-    const response= await axios.get(
-        "https://api.openrouteservice.org/geocode/search",
-        {
-            params:{
-                api_key:process.env.ORS_API_KEY,
-                text:query
+    let response;
+
+    try {
+        response = await axios.get(
+            "https://api.heigit.org/pelias/v1/search",
+            {
+                params:{
+                    api_key:process.env.ORS_API_KEY,
+                    text:query
+                }
             }
-        }
-    );
+        );
+    } catch (error) {
+        const status = error.response?.status || 500;
+        const detail =
+            error.response?.data?.error?.message ||
+            error.response?.data?.message ||
+            error.message;
+
+        const err = new Error(
+            `OpenRouteService search failed (${status}): ${detail}`
+        );
+        err.status = status;
+        throw err;
+    }
 
     return response.data.features.map(place=>({
         name:place.properties.name||place.properties.label,
@@ -97,4 +113,46 @@ exports.searchPlaces=async(query)=>{
         latitude:place.geometry.coordinates[1],
         longitude:place.geometry.coordinates[0]
     }));
+};
+
+exports.reverseGeocode=async(lat,lng)=>{
+    try{
+        const response= await axios.get(
+            "https://api.heigit.org/pelias/v1/reverse",
+            {
+                params:{
+                    api_key:process.env.ORS_API_KEY,
+                    "point.lon": lng,
+                    "point.lat": lat
+                }
+            }
+        );
+
+        const feature= response.data.features?.[0];
+
+        if(!feature){
+            return null;
+        }
+
+        return {
+            name: feature.properties.name || feature.properties.label,
+            address:
+                feature.properties.label ||
+                feature.properties.name ||
+                "Selected location"
+        };
+
+    } catch (error) {
+        const status = error.response?.status || 500;
+        const detail =
+            error.response?.data?.error?.message ||
+            error.response?.data?.message ||
+            error.message;
+
+        const err = new Error(
+            `OpenRouteService reverse geocode failed (${status}): ${detail}`
+        );
+        err.status = status;
+        throw err;
+    }
 };

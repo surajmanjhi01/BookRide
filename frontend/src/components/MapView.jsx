@@ -30,14 +30,24 @@ const MapView = ({
   destinationCoordinates,
   routeCoordinates = [],
   captainLocation,
-  setPickupCoordinates,
-  setDestinationCoordinates,
+  userLocation,
+  mapSelectionMode,
+  onMapLocationSelect,
+  // Kept so the draggable on-map markers can still push coordinate
+  // updates back into Home without breaking existing behaviour.
+  setPickupCoordinates = () => {},
+  setDestinationCoordinates = () => {},
 }) => {
   const mapContainer = useRef(null);
   const map = useRef(null);
 
-  const currentMarker = useRef(null);
+  // 📍 User's real GPS location marker (blue)
+  const userLocationMarker = useRef(null);
+
+  // 🟢 Pickup marker (green)
   const pickupMarker = useRef(null);
+
+  // 🔴 Destination marker (red)
   const destinationMarker = useRef(null);
 
   // 🚕 Captain marker
@@ -64,45 +74,10 @@ const MapView = ({
       "top-right"
     );
 
-    // ==================================================
-    // CURRENT USER LOCATION
-    // ==================================================
-
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          if (!map.current) return;
-
-          const lng =
-            position.coords.longitude;
-
-          const lat =
-            position.coords.latitude;
-
-          // Don't create duplicate current marker
-          if (!currentMarker.current) {
-            currentMarker.current =
-              new maplibregl.Marker({
-                color: "green",
-              })
-                .setLngLat([lng, lat])
-                .addTo(map.current);
-          }
-
-          map.current.flyTo({
-            center: [lng, lat],
-            zoom: 14,
-          });
-        },
-
-        (error) => {
-          console.log(
-            "Current location error:",
-            error
-          );
-        }
-      );
-    }
+    // NOTE: The user's live GPS location is resolved in Home.jsx and
+    // passed in as `userLocation`. We render its marker below instead of
+    // resolving it here, so the marker stays pinned at the real GPS
+    // position even after the user manually changes the pickup location.
 
     return () => {
       if (map.current) {
@@ -111,6 +86,39 @@ const MapView = ({
       }
     };
   }, []);
+
+  // ==================================================
+  // USER LIVE LOCATION MARKER (BLUE)
+  // ==================================================
+
+  useEffect(() => {
+    if (!map.current || !userLocation) {
+      return;
+    }
+
+    const lng = userLocation.lng;
+    const lat = userLocation.lat;
+
+    if (!userLocationMarker.current) {
+      userLocationMarker.current =
+        new maplibregl.Marker({
+          color: "#2563EB",
+        })
+          .setLngLat([lng, lat])
+          .addTo(map.current);
+
+      // Center the map on the user's real position only once
+      map.current.flyTo({
+        center: [lng, lat],
+        zoom: 14,
+      });
+    } else {
+      userLocationMarker.current.setLngLat([
+        lng,
+        lat,
+      ]);
+    }
+  }, [userLocation]);
 
   // ==================================================
   // PICKUP MARKER
@@ -127,7 +135,7 @@ const MapView = ({
     if (!pickupMarker.current) {
       pickupMarker.current =
         new maplibregl.Marker({
-          color: "blue",
+          color: "#16A34A",
           draggable: true,
         })
           .setLngLat([lng, lat])
@@ -274,6 +282,39 @@ const MapView = ({
     }
 
   }, [captainLocation]);
+
+  // ==================================================
+  // MAP CLICK → SELECT PICKUP / DESTINATION
+  // ==================================================
+
+  useEffect(() => {
+    if (!map.current) return;
+
+    // Only enable selection when a mode is explicitly active
+    if (
+      mapSelectionMode !== "pickup" &&
+      mapSelectionMode !== "destination"
+    ) {
+      return;
+    }
+
+    const handleMapClick = (event) => {
+      if (!onMapLocationSelect) return;
+      if (!event || !event.lngLat) return;
+
+      const { lat, lng } = event.lngLat;
+
+      onMapLocationSelect({ lat, lng });
+    };
+
+    map.current.on("click", handleMapClick);
+
+    return () => {
+      if (map.current) {
+        map.current.off("click", handleMapClick);
+      }
+    };
+  }, [mapSelectionMode, onMapLocationSelect]);
 
   // ==================================================
   // DRAW ROUTE

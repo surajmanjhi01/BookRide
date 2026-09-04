@@ -16,6 +16,33 @@ import polyline from "@mapbox/polyline";
 
 gsap.registerPlugin(useGSAP);
 
+// ============================================================
+// REVERSE GEOCODE HELPER
+// ============================================================
+
+const reverseGeocode = async (lat, lng) => {
+  try {
+    const response = await api.get(
+      "/api/maps/reverse-geocode",
+      {
+        params: {
+          lat,
+          lng,
+        },
+      }
+    );
+
+    return response.data?.data?.address || null;
+  } catch (error) {
+    console.error(
+      "❌ Reverse geocode failed:",
+      error.response?.data || error
+    );
+
+    return null;
+  }
+};
+
 const Home = () => {
   // ============================================================
   // LOCATION STATES
@@ -38,6 +65,20 @@ const Home = () => {
 
   const [activeField, setActiveField] =
     useState("");
+
+  // ============================================================
+  // MAP SELECTION MODE
+  // ============================================================
+
+  const [mapSelectionMode, setMapSelectionMode] =
+    useState(null);
+
+  // ============================================================
+  // USER LIVE LOCATION
+  // ============================================================
+
+  const [userLocation, setUserLocation] =
+    useState(null);
 
   // ============================================================
   // CAPTAIN LOCATION
@@ -104,6 +145,11 @@ const Home = () => {
 
   const bottomSheetRef =
     useRef(null);
+
+  // Prevents the auto-detected live location from repeatedly
+  // overwriting a pickup the user has manually chosen later.
+  const hasInitializedLocation =
+    useRef(false);
 
   // ============================================================
   // RIDER SOCKET CONNECTION
@@ -922,6 +968,232 @@ const Home = () => {
     };
 
   // ============================================================
+  // AUTO-DETECT USER LIVE LOCATION (ON INITIAL LOAD ONLY)
+  // ============================================================
+
+  useEffect(() => {
+    if (hasInitializedLocation.current) return;
+
+    // Claim the slot synchronously so StrictMode double-invocation
+    // and remounting do not re-run geolocation repeatedly.
+    hasInitializedLocation.current = true;
+
+    if (!navigator.geolocation) {
+      console.warn(
+        "⚠️ Geolocation is not supported by this browser."
+      );
+
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        try {
+          const latitude =
+            position.coords?.latitude;
+
+          const longitude =
+            position.coords?.longitude;
+
+          if (
+            latitude === undefined ||
+            longitude === undefined
+          ) {
+            return;
+          }
+
+          const location = {
+            lat: latitude,
+            lng: longitude,
+          };
+
+          setUserLocation(location);
+          setPickupCoordinates(location);
+
+          const address =
+            await reverseGeocode(
+              latitude,
+              longitude
+            );
+
+          setPickup(address || "Current location");
+        } catch (error) {
+          console.error(
+            "❌ Auto-detect location error:",
+            error
+          );
+        }
+      },
+
+      (error) => {
+        console.warn(
+          "⚠️ Geolocation permission denied or failed:",
+          error?.message || error
+        );
+      }
+    );
+  }, []);
+
+  // ============================================================
+  // HANDLE MAP LOCATION SELECTION
+  // ============================================================
+
+  const handleMapLocationSelect =
+    async (coordinates) => {
+
+      if (
+        !coordinates ||
+        coordinates.lat === undefined ||
+        coordinates.lng === undefined
+      ) {
+        return;
+      }
+
+      const { lat, lng } = coordinates;
+
+      if (
+        mapSelectionMode ===
+        "pickup"
+      ) {
+
+        setPickupCoordinates({
+          lat,
+          lng,
+        });
+
+        const address =
+          await reverseGeocode(
+            lat,
+            lng
+          );
+
+        setPickup(address || "Selected location");
+
+        setPickupSuggestions([]);
+      }
+
+      if (
+        mapSelectionMode ===
+        "destination"
+      ) {
+
+        setDestinationCoordinates({
+          lat,
+          lng,
+        });
+
+        const address =
+          await reverseGeocode(
+            lat,
+            lng
+          );
+
+        setDestination(
+          address || "Selected destination"
+        );
+
+        setDestinationSuggestions([]);
+      }
+
+      setPanelOpen(false);
+      setMapSelectionMode(null);
+    };
+
+  // ============================================================
+  // USE MY CURRENT LOCATION
+  // ============================================================
+
+  const useCurrentLocation =
+    () => {
+
+      if (!navigator.geolocation) {
+        console.warn(
+          "⚠️ Geolocation is not supported by this browser."
+        );
+
+        return;
+      }
+
+      const applyLocation =
+        (location) => {
+          setUserLocation(location);
+          setPickupCoordinates(location);
+
+          reverseGeocode(
+            location.lat,
+            location.lng
+          ).then((address) => {
+            setPickup(
+              address || "Current location"
+            );
+          });
+        };
+
+      // Already resolved on load → use it straight away.
+      if (userLocation) {
+        applyLocation(userLocation);
+        setPanelOpen(false);
+        return;
+      }
+
+      // Otherwise attempt to grab the GPS position now.
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const latitude =
+            position.coords?.latitude;
+
+          const longitude =
+            position.coords?.longitude;
+
+          if (
+            latitude === undefined ||
+            longitude === undefined
+          ) {
+            return;
+          }
+
+          applyLocation({
+            lat: latitude,
+            lng: longitude,
+          });
+
+          setPanelOpen(false);
+        },
+
+        (error) => {
+          console.warn(
+            "⚠️ Geolocation failed:",
+            error?.message || error
+          );
+        }
+      );
+    };
+
+  // ============================================================
+  // PICK PICKUP ON MAP
+  // ============================================================
+
+  const handlePickPickupOnMap =
+    () => {
+      setMapSelectionMode("pickup");
+      setPanelOpen(false);
+      setPickupSuggestions([]);
+      setDestinationSuggestions([]);
+    };
+
+  // ============================================================
+  // PICK DESTINATION ON MAP
+  // ============================================================
+
+  const handlePickDestinationOnMap =
+    () => {
+      setMapSelectionMode("destination");
+      setPanelOpen(false);
+      setPickupSuggestions([]);
+      setDestinationSuggestions([]);
+    };
+
+  // ============================================================
   // GET DISTANCE + TIME
   // ============================================================
 
@@ -1321,6 +1593,12 @@ const Home = () => {
       pickupCoordinates &&
       destinationCoordinates
     ) {
+
+      // Clear any previously computed fare / vehicle selection so the
+      // recalculation below always reflects the latest locations.
+      setFare(null);
+      setSelectedVehicle(null);
+
       getDistanceTime();
     }
 
@@ -1403,6 +1681,18 @@ const Home = () => {
             captainLocation
           }
 
+          userLocation={
+            userLocation
+          }
+
+          mapSelectionMode={
+            mapSelectionMode
+          }
+
+          onMapLocationSelect={
+            handleMapLocationSelect
+          }
+
           setPickupCoordinates={
             setPickupCoordinates
           }
@@ -1447,6 +1737,60 @@ const Home = () => {
           : "Disconnected"}
 
       </div>
+
+      {/* ======================================================
+          MAP SELECTION MODE INSTRUCTION
+      ====================================================== */}
+
+      {mapSelectionMode && (
+
+        <div
+          className="
+            absolute
+            top-4
+            left-1/2
+            -translate-x-1/2
+            z-[100]
+            bg-black
+            text-white
+            px-4
+            py-3
+            rounded-xl
+            shadow-xl
+            flex
+            items-center
+            gap-3
+            max-w-[90%]
+          "
+        >
+
+          <span className="text-sm font-medium">
+            {mapSelectionMode === "pickup"
+              ? "📍 Tap anywhere on the map to set Pickup"
+              : "🎯 Tap anywhere on the map to set Destination"}
+          </span>
+
+          <button
+            type="button"
+            onClick={() => setMapSelectionMode(null)}
+            className="
+              ml-auto
+              bg-white
+              text-black
+              text-xs
+              font-bold
+              px-3
+              py-1.5
+              rounded-lg
+              hover:bg-gray-200
+              whitespace-nowrap
+            "
+          >
+            Cancel
+          </button>
+
+        </div>
+      )}
 
       {/* ======================================================
           RIDE REQUESTED MESSAGE
@@ -1871,6 +2215,43 @@ const Home = () => {
               "
             />
 
+            <div className="flex flex-wrap gap-2 mb-3">
+
+              <button
+                type="button"
+                onClick={useCurrentLocation}
+                className="
+                  bg-black
+                  text-white
+                  px-3
+                  py-2
+                  rounded-lg
+                  text-sm
+                  font-semibold
+                "
+              >
+                📍 Use My Current Location
+              </button>
+
+              <button
+                type="button"
+                onClick={handlePickPickupOnMap}
+                className="
+                  border
+                  border-gray-300
+                  text-gray-700
+                  px-3
+                  py-2
+                  rounded-lg
+                  text-sm
+                  font-semibold
+                "
+              >
+                🗺 Pick Pickup on Map
+              </button>
+
+            </div>
+
             {/* ------------------------------------------------
                 DESTINATION
             ------------------------------------------------ */}
@@ -1909,6 +2290,27 @@ const Home = () => {
                 focus:border-black
               "
             />
+
+            <div className="flex flex-wrap gap-2 mb-3">
+
+              <button
+                type="button"
+                onClick={handlePickDestinationOnMap}
+                className="
+                  border
+                  border-gray-300
+                  text-gray-700
+                  px-3
+                  py-2
+                  rounded-lg
+                  text-sm
+                  font-semibold
+                "
+              >
+                🗺 Pick Destination on Map
+              </button>
+
+            </div>
 
             {/* ------------------------------------------------
                 DISTANCE / DURATION
