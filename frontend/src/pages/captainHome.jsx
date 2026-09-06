@@ -18,6 +18,32 @@ const CaptainHome = () => {
   const [location, setLocation] =
     useState(null);
 
+  // Set when the browser can't provide a GPS fix
+  // (permission denied / unavailable / timeout). When this is
+  // set while the captain is online, ride requests can never
+  // reach the captain because his location is unknown/missing,
+  // so we must surface it instead of failing silently.
+  const [gpsError, setGpsError] =
+    useState(null);
+
+  // Manual location fallback — used when the browser denies GPS.
+  // Lets the captain still go online and receive ride requests
+  // (needs a known location) without granting browser permission.
+  const [manualLat, setManualLat] =
+    useState("");
+
+  const [manualLng, setManualLng] =
+    useState("");
+
+  // Where the current location came from: "gps" | "manual" | null
+  const [locationSource, setLocationSource] =
+    useState(null);
+
+  // Bump this to force the GPS effect to re-run (e.g. after the
+  // user grants location permission in browser settings).
+  const [gpsRetryTrigger, setGpsRetryTrigger] =
+    useState(0);
+
   const [loading, setLoading] =
     useState(false);
 
@@ -531,6 +557,97 @@ const CaptainHome = () => {
   }, []);
 
   // ==================================================
+  // RESTORE ONLINE/OFFLINE STATUS AFTER PAGE REFRESH
+  //
+  // The backend captain document is the source of truth:
+  //   GET /api/captains/profile  →  { status: "active" | "inactive", ... }
+  //
+  // A refresh must NOT force an online captain offline. If the
+  // backend still says "active", we keep them online — which also
+  // restarts GPS tracking (the GPS effect depends on isOnline) and
+  // lets them keep receiving ride requests on the reconnected
+  // socket.
+  // ==================================================
+
+  const statusRestoreRef =
+    useRef(false);
+
+  useEffect(() => {
+
+    // Guard against React StrictMode double-invocation so the
+    // profile is only fetched once per mount.
+    if (statusRestoreRef.current) return;
+
+    statusRestoreRef.current = true;
+
+    let cancelled = false;
+
+    const restoreStatus =
+      async () => {
+
+        const token =
+          localStorage.getItem(
+            "token"
+          );
+
+        if (!token) {
+          return;
+        }
+
+        try {
+
+          const response =
+            await api.get(
+              "/api/captains/profile",
+              {
+                headers: {
+                  Authorization:
+                    `Bearer ${token}`,
+                },
+              }
+            );
+
+          if (cancelled) return;
+
+          // getCaptainProfile responds with the captain document
+          // directly (NOT wrapped in { data: ... }).
+          const captain =
+            response.data;
+
+          const status =
+            captain?.status;
+
+          console.log(
+            "🔄 Restored captain status:",
+            status
+          );
+
+          setIsOnline(
+            status === "active"
+          );
+
+        } catch (error) {
+
+          console.error(
+            "❌ Restore captain status failed:",
+            error.response?.data ||
+              error
+          );
+
+          // GPS permission errors / profile failures must NOT
+          // crash the page or force a captain offline — keep the
+          // existing UI state and show graceful feedback.
+        }
+      };
+
+    restoreStatus();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // ==================================================
   // REQUEST NOTIFICATION PERMISSION
   // ==================================================
 
@@ -648,6 +765,105 @@ const CaptainHome = () => {
     };
 
   // ==================================================
+  // MANUAL LOCATION FALLBACK
+  //
+  // If the browser denies GPS access, the captain can still
+  // type a latitude/longitude so the backend knows where he is
+  // and can deliver nearby ride requests.
+  // ==================================================
+
+  const saveManualLocation =
+    async () => {
+
+      const latitude =
+        Number(manualLat);
+
+      const longitude =
+        Number(manualLng);
+
+      if (
+        Number.isNaN(latitude) ||
+        Number.isNaN(longitude) ||
+        latitude < -90 ||
+        latitude > 90 ||
+        longitude < -180 ||
+        longitude > 180
+      ) {
+
+        alert(
+          "Enter a valid latitude (-90 to 90) and longitude (-180 to 180)."
+        );
+
+        return;
+      }
+
+      const token =
+        localStorage.getItem(
+          "token"
+        );
+
+      if (!token) {
+
+        alert(
+          "Captain token not found. Please login again."
+        );
+
+        return;
+      }
+
+      try {
+
+        const response =
+          await api.patch(
+            "/api/captains/location",
+            {
+              latitude,
+              longitude,
+            },
+            {
+              headers: {
+                Authorization:
+                  `Bearer ${token}`,
+              },
+            }
+          );
+
+        console.log(
+          "📍 Manual location saved:",
+          response.data
+        );
+
+        setLocation({
+          latitude,
+          longitude,
+        });
+
+        setLocationSource(
+          "manual"
+        );
+
+        setGpsError(null);
+
+        alert(
+          "Manual location saved. You will now receive ride requests near this location."
+        );
+
+      } catch (error) {
+
+        console.error(
+          "❌ Manual location update failed:",
+          error.response?.data ||
+            error
+        );
+
+        alert(
+          error.response?.data?.message ||
+            "Failed to save manual location"
+        );
+      }
+    };
+
+  // ==================================================
   // GPS LOCATION
   // ==================================================
 
@@ -657,6 +873,10 @@ const CaptainHome = () => {
 
       setLocation(null);
 
+      setLocationSource(null);
+
+      setGpsError(null);
+
       return;
     }
 
@@ -664,9 +884,14 @@ const CaptainHome = () => {
       !navigator.geolocation
     ) {
 
+      const message =
+        "Geolocation is not supported by this browser.";
+
       console.error(
         "❌ Geolocation is not supported by this browser"
       );
+
+      setGpsError(message);
 
       return;
     }
@@ -684,6 +909,10 @@ const CaptainHome = () => {
 
       return;
     }
+
+    // Starting a fresh GPS attempt → clear the previous error so
+    // a "Retry GPS" click shows "Waiting for location…" again.
+    setGpsError(null);
 
     console.log(
       "📍 GPS tracking started"
@@ -712,6 +941,13 @@ const CaptainHome = () => {
             latitude,
             longitude,
           });
+
+          // A GPS fix is available now — clear any previous error
+          setGpsError(null);
+
+          setLocationSource(
+            "gps"
+          );
 
           try {
 
@@ -752,6 +988,9 @@ const CaptainHome = () => {
             error
           );
 
+          let message =
+            "Could not get your location.";
+
           switch (
             error.code
           ) {
@@ -762,6 +1001,11 @@ const CaptainHome = () => {
                 "❌ Location permission denied."
               );
 
+              message =
+                "Location permission was denied. " +
+                "Allow location access for this site, " +
+                "then reload to start receiving ride requests.";
+
               break;
 
             case error.POSITION_UNAVAILABLE:
@@ -769,6 +1013,10 @@ const CaptainHome = () => {
               console.error(
                 "❌ Location unavailable."
               );
+
+              message =
+                "Location is currently unavailable. " +
+                "Check your device's GPS / network connection.";
 
               break;
 
@@ -778,6 +1026,10 @@ const CaptainHome = () => {
                 "❌ Location request timed out."
               );
 
+              message =
+                "Location request timed out. " +
+                "Try toggling offline/online or reloading the page.";
+
               break;
 
             default:
@@ -786,6 +1038,8 @@ const CaptainHome = () => {
                 "❌ Unknown GPS error."
               );
           }
+
+          setGpsError(message);
         },
 
         {
@@ -811,7 +1065,7 @@ const CaptainHome = () => {
       );
     };
 
-  }, [isOnline]);
+  }, [isOnline, gpsRetryTrigger]);
 
   // ==================================================
   // ACCEPT RIDE
@@ -1678,6 +1932,131 @@ const CaptainHome = () => {
       </div>
 
       {/* ================================================
+          STATUS ALERTS
+          (surface silent failures — if these are hidden the
+          captain cannot tell why no ride requests arrive)
+      ================================================ */}
+
+      {isOnline &&
+        gpsError && (
+
+          <div className="bg-red-50 border-2 border-red-300 rounded-2xl p-5 mb-5">
+
+            <p className="font-semibold text-red-700">
+              ⚠️ Location unavailable — you won't receive ride requests
+            </p>
+
+            <p className="text-sm text-red-600 mt-1">
+              {gpsError}
+            </p>
+
+            {/* ------------------------------------------
+                RETRY GPS
+            ------------------------------------------ */}
+
+            <button
+              onClick={() =>
+                setGpsRetryTrigger(
+                  (n) => n + 1
+                )
+              }
+              className="mt-3 w-full py-2 rounded-lg bg-red-500 hover:bg-red-600 text-white text-sm font-semibold"
+            >
+              🔄 Retry GPS
+            </button>
+
+            {/* ------------------------------------------
+                MANUAL LOCATION FALLBACK
+            ------------------------------------------ */}
+
+            <div className="mt-4 border-t-2 border-red-200 pt-4">
+
+              <p className="text-sm font-semibold text-red-700 mb-2">
+                Or set your location manually:
+              </p>
+
+              <div className="flex gap-2">
+
+                <input
+                  type="number"
+                  step="any"
+                  value={manualLat}
+                  onChange={(e) =>
+                    setManualLat(
+                      e.target.value
+                    )
+                  }
+                  placeholder="Latitude (e.g. 23.384)"
+                  className="w-1/2 rounded-lg border border-red-300 px-3 py-2 text-sm focus:outline-none"
+                />
+
+                <input
+                  type="number"
+                  step="any"
+                  value={manualLng}
+                  onChange={(e) =>
+                    setManualLng(
+                      e.target.value
+                    )
+                  }
+                  placeholder="Longitude (e.g. 85.309)"
+                  className="w-1/2 rounded-lg border border-red-300 px-3 py-2 text-sm focus:outline-none"
+                />
+
+              </div>
+
+              <button
+                onClick={saveManualLocation}
+                className="mt-2 w-full py-2 rounded-lg bg-green-600 hover:bg-green-700 text-white text-sm font-semibold"
+              >
+                📍 Save Manual Location
+              </button>
+
+            </div>
+
+          </div>
+
+        )}
+
+      {isOnline &&
+        !location &&
+        !gpsError && (
+
+          <div className="bg-yellow-50 border-2 border-yellow-300 rounded-2xl p-5 mb-5">
+
+            <p className="font-semibold text-yellow-800">
+              ⏳ Waiting for your location…
+            </p>
+
+            <p className="text-sm text-yellow-700 mt-1">
+              Ride requests are only sent to captains whose location
+              is known. If this message stays, allow location access
+              in your browser.
+            </p>
+
+          </div>
+
+        )}
+
+      {isOnline &&
+        !socketConnected && (
+
+          <div className="bg-orange-50 border-2 border-orange-300 rounded-2xl p-5 mb-5">
+
+            <p className="font-semibold text-orange-700">
+              ⚠️ Socket disconnected — reconnecting…
+            </p>
+
+            <p className="text-sm text-orange-600 mt-1">
+              Ride requests cannot reach you while the connection is
+              down. Keep this tab open.
+            </p>
+
+          </div>
+
+        )}
+
+      {/* ================================================
           CURRENT RIDE
       ================================================ */}
 
@@ -2191,7 +2570,9 @@ const CaptainHome = () => {
               <span className="w-3 h-3 bg-green-500 rounded-full" />
 
               <span className="text-sm">
-                GPS tracking active
+                {locationSource === "manual"
+                  ? "Manual location set"
+                  : "GPS tracking active"}
               </span>
 
             </div>

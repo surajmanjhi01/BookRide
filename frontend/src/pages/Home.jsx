@@ -2,6 +2,7 @@ import React, {
   useState,
   useRef,
   useEffect,
+  useCallback,
 } from "react";
 
 import LocationSearchPanel from "../components/LocationSearchPanel";
@@ -43,13 +44,103 @@ const reverseGeocode = async (lat, lng) => {
   }
 };
 
+// ============================================================
+// LOCALSTORAGE HELPERS (PAGE REFRESH PERSISTENCE)
+// ============================================================
+
+const STORAGE_KEYS = {
+  pickup: "uber_pickup",
+  destination: "uber_destination",
+  pickupCoordinates: "uber_pickup_coordinates",
+  destinationCoordinates: "uber_destination_coordinates",
+};
+
+// Safely read a plain-text value; never throws.
+const readStoredText = (key) => {
+  try {
+    return localStorage.getItem(key) || "";
+  } catch (error) {
+    console.error(
+      `Failed to read ${key} from localStorage:`,
+      error
+    );
+
+    return "";
+  }
+};
+
+// Safely read + validate a { lat, lng } coordinate object.
+const readStoredCoordinates = (key) => {
+  try {
+    const raw =
+      localStorage.getItem(key);
+
+    if (!raw) {
+      return null;
+    }
+
+    const parsed =
+      JSON.parse(raw);
+
+    if (
+      parsed &&
+      typeof parsed.lat === "number" &&
+      typeof parsed.lng === "number"
+    ) {
+      return {
+        lat: parsed.lat,
+        lng: parsed.lng,
+      };
+    }
+
+    return null;
+  } catch (error) {
+    console.error(
+      `Failed to parse ${key} from localStorage:`,
+      error
+    );
+
+    return null;
+  }
+};
+
+// Persist a value; empty/null values remove the key entirely.
+const persistValue = (key, value) => {
+  try {
+    if (
+      value === null ||
+      value === undefined ||
+      value === ""
+    ) {
+      localStorage.removeItem(key);
+    } else {
+      localStorage.setItem(
+        key,
+        typeof value === "string"
+          ? value
+          : JSON.stringify(value)
+      );
+    }
+  } catch (error) {
+    console.error(
+      `Failed to persist ${key} to localStorage:`,
+      error
+    );
+  }
+};
+
 const Home = () => {
   // ============================================================
   // LOCATION STATES
   // ============================================================
 
-  const [pickup, setPickup] = useState("");
-  const [destination, setDestination] = useState("");
+  const [pickup, setPickup] = useState(() =>
+    readStoredText(STORAGE_KEYS.pickup)
+  );
+
+  const [destination, setDestination] = useState(() =>
+    readStoredText(STORAGE_KEYS.destination)
+  );
 
   const [pickupSuggestions, setPickupSuggestions] =
     useState([]);
@@ -58,13 +149,24 @@ const Home = () => {
     useState([]);
 
   const [pickupCoordinates, setPickupCoordinates] =
-    useState(null);
+    useState(() =>
+      readStoredCoordinates(
+        STORAGE_KEYS.pickupCoordinates
+      )
+    );
 
   const [destinationCoordinates, setDestinationCoordinates] =
-    useState(null);
+    useState(() =>
+      readStoredCoordinates(
+        STORAGE_KEYS.destinationCoordinates
+      )
+    );
 
   const [activeField, setActiveField] =
     useState("");
+
+  const[nearbyCaptains, setNearbyCaptains] =
+    useState([]);
 
   // ============================================================
   // MAP SELECTION MODE
@@ -150,6 +252,37 @@ const Home = () => {
   // overwriting a pickup the user has manually chosen later.
   const hasInitializedLocation =
     useRef(false);
+
+  // ============================================================
+  // PERSIST RIDER STATE ACROSS PAGE REFRESHES
+  //
+  // Each of these effects mirrors state into localStorage so a
+  // refresh restores pickup / destination / coordinates. When a
+  // value is cleared ("" or null) the stored key is removed so we
+  // never restore stale selections.
+  // ============================================================
+
+  useEffect(() => {
+    persistValue(STORAGE_KEYS.pickup, pickup);
+  }, [pickup]);
+
+  useEffect(() => {
+    persistValue(STORAGE_KEYS.destination, destination);
+  }, [destination]);
+
+  useEffect(() => {
+    persistValue(
+      STORAGE_KEYS.pickupCoordinates,
+      pickupCoordinates
+    );
+  }, [pickupCoordinates]);
+
+  useEffect(() => {
+    persistValue(
+      STORAGE_KEYS.destinationCoordinates,
+      destinationCoordinates
+    );
+  }, [destinationCoordinates]);
 
   // ============================================================
   // RIDER SOCKET CONNECTION
@@ -479,7 +612,7 @@ const Home = () => {
         acceptedRide
       );
     };
-
+    
     // ==========================================================
     // CAPTAIN ARRIVED
     // ==========================================================
@@ -603,8 +736,7 @@ const Home = () => {
         }
       );
     };
-
-    // ==========================================================
+  // ==========================================================
     // REGISTER SOCKET LISTENERS
     // ==========================================================
 
@@ -729,6 +861,106 @@ const Home = () => {
     };
 
   }, []);
+
+  // ============================================================
+  // NEARBY ONLINE CAPTAINS
+  //
+  // Fetches GET /api/captains/nearby around the PICKUP location.
+  //
+  // Runs only when:
+  //   - a pickup exists, and
+  //   - the ride is NOT accepted / arrived / ongoing
+  //
+  // Debounced (400 ms) + aborted on cleanup → the API is never
+  // hammered on every render and re-fetch loops are impossible.
+  // When the ride is accepted (or later), nearbyCaptains is
+  // cleared and polling stops so the rider only sees the
+  // accepted captain's live marker.
+  // ============================================================
+
+  useEffect(() => {
+
+    // Ride accepted / arrived / ongoing → remove all nearby
+    // captains and stop fetching.
+    if (
+      rideStatus === "accepted" ||
+      rideStatus === "arrived" ||
+      rideStatus === "ongoing"
+    ) {
+      setNearbyCaptains([]);
+      return;
+    }
+
+    // No pickup → nothing to search around.
+    if (!pickupCoordinates) {
+      setNearbyCaptains([]);
+      return;
+    }
+
+    let active = true;
+
+    const controller = new AbortController();
+
+    const fetchNearbyCaptains =
+      async () => {
+
+        try {
+
+          const response = await api.get(
+            "/api/captains/nearby",
+            {
+              params: {
+                lng: pickupCoordinates.lng,
+                lat: pickupCoordinates.lat,
+              },
+              signal: controller.signal,
+            }
+          );
+
+          if (!active) return;
+
+          console.log(
+            "🚕 Nearby captains:",
+            response.data
+          );
+
+          setNearbyCaptains(response.data?.data || []);
+        } catch (error) {
+
+          if (active && !controller.signal.aborted) {
+            console.error(
+              "❌ Failed to fetch nearby captains:",
+              error.response?.data || error
+            );
+          }
+        }
+      };
+
+    // Debounce the first fetch so typing/animations settle.
+    const timer = setTimeout(
+      fetchNearbyCaptains,
+      400
+    );
+
+    // Refresh periodically: if a captain goes offline/moves,
+    // the rider's map must reflect it even when nothing else
+    // on the page changes. Otherwise offline captains stay
+    // visible as if they were still online.
+    const interval = setInterval(
+      fetchNearbyCaptains,
+      20000
+    );
+
+    return () => {
+      active = false;
+      clearTimeout(timer);
+      clearInterval(interval);
+      controller.abort();
+    };
+  }, [
+    pickupCoordinates,
+    rideStatus,
+  ]);
 
   // ============================================================
   // GSAP ANIMATION
@@ -978,6 +1210,17 @@ const Home = () => {
     // and remounting do not re-run geolocation repeatedly.
     hasInitializedLocation.current = true;
 
+    // If a pickup was restored from localStorage, do NOT overwrite
+    // it with the browser's automatic GPS position — the user
+    // explicitly chose that pickup before refreshing.
+    if (pickupCoordinates) {
+      console.log(
+        "📍 Pickup restored from storage — skipping auto GPS pickup."
+      );
+
+      return;
+    }
+
     if (!navigator.geolocation) {
       console.warn(
         "⚠️ Geolocation is not supported by this browser."
@@ -1032,7 +1275,47 @@ const Home = () => {
         );
       }
     );
-  }, []);
+  }, [pickupCoordinates]);
+
+  // ============================================================
+  // COORDINATE UPDATE HELPERS (used by MapView marker drag)
+  // ============================================================
+
+  // Wrapped setters passed to MapView. When the user drags the
+  // pickup / destination marker, MapView calls these so Home can
+  // keep the address text in sync via reverse geocoding. The
+  // route / fare recalculation happens automatically in the
+  // "both locations exist" effect below.
+
+  const handlePickupCoordinatesChange =
+    useCallback((coordinates) => {
+
+      if (!coordinates) return;
+
+      setPickupCoordinates(coordinates);
+
+      reverseGeocode(
+        coordinates.lat,
+        coordinates.lng
+      ).then((address) => {
+        setPickup(address || "Selected location");
+      });
+    }, []);
+
+  const handleDestinationCoordinatesChange =
+    useCallback((coordinates) => {
+
+      if (!coordinates) return;
+
+      setDestinationCoordinates(coordinates);
+
+      reverseGeocode(
+        coordinates.lat,
+        coordinates.lng
+      ).then((address) => {
+        setDestination(address || "Selected destination");
+      });
+    }, []);
 
   // ============================================================
   // HANDLE MAP LOCATION SELECTION
@@ -1590,17 +1873,26 @@ const Home = () => {
   useEffect(() => {
 
     if (
-      pickupCoordinates &&
-      destinationCoordinates
+      !pickupCoordinates ||
+      !destinationCoordinates
     ) {
 
-      // Clear any previously computed fare / vehicle selection so the
-      // recalculation below always reflects the latest locations.
+      // Either location was removed → clear stale route / fare so
+      // the map does not keep showing an outdated polyline.
+      setRouteCoordinates([]);
+      setDistance(null);
+      setDuration(null);
       setFare(null);
       setSelectedVehicle(null);
-
-      getDistanceTime();
+      return;
     }
+
+    // Clear any previously computed fare / vehicle selection so the
+    // recalculation below always reflects the latest locations.
+    setFare(null);
+    setSelectedVehicle(null);
+
+    getDistanceTime();
 
   }, [
     pickupCoordinates,
@@ -1664,43 +1956,18 @@ const Home = () => {
 
       <div className="absolute inset-0">
 
-        <MapView
-          pickupCoordinates={
-            pickupCoordinates
-          }
-
-          destinationCoordinates={
-            destinationCoordinates
-          }
-
-          routeCoordinates={
-            routeCoordinates
-          }
-
-          captainLocation={
-            captainLocation
-          }
-
-          userLocation={
-            userLocation
-          }
-
-          mapSelectionMode={
-            mapSelectionMode
-          }
-
-          onMapLocationSelect={
-            handleMapLocationSelect
-          }
-
-          setPickupCoordinates={
-            setPickupCoordinates
-          }
-
-          setDestinationCoordinates={
-            setDestinationCoordinates
-          }
-        />
+      <MapView
+        userLocation={userLocation}
+        pickupCoordinates={pickupCoordinates}
+        destinationCoordinates={destinationCoordinates}
+        routeCoordinates={routeCoordinates}
+        nearbyCaptains={nearbyCaptains}
+        captainLocation={captainLocation}
+        mapSelectionMode={mapSelectionMode}
+        onMapLocationSelect={handleMapLocationSelect}
+        setPickupCoordinates={handlePickupCoordinatesChange}
+        setDestinationCoordinates={handleDestinationCoordinatesChange}
+      />
 
       </div>
 
@@ -2247,7 +2514,7 @@ const Home = () => {
                   font-semibold
                 "
               >
-                🗺 Pick Pickup on Map
+                📍 Select Pickup on Map
               </button>
 
             </div>
@@ -2307,7 +2574,7 @@ const Home = () => {
                   font-semibold
                 "
               >
-                🗺 Pick Destination on Map
+                🎯 Select Destination on Map
               </button>
 
             </div>
