@@ -123,25 +123,26 @@ exports.findNearbyCaptains = async (
     );
 
     activeCaptains.forEach((captain) => {
-      console.log(
-        "Captain:",
-        captain._id.toString()
-      );
+      const hasSocket = Boolean(captain.socketId);
+      const coords = captain.location?.coordinates;
+      const hasValidLocation =
+        Array.isArray(coords) &&
+        coords.length === 2 &&
+        !(coords[0] === 0 && coords[1] === 0);
 
-      console.log(
-        "Status:",
-        captain.status
-      );
+      if (!hasSocket) {
+        console.warn(
+          `⚠️ Captain ${captain._id.toString()} is active but has NO socket connection – rides will NOT reach them until the captain page is reopened/reconnected.`
+        );
+      }
 
-      console.log(
-        "Socket:",
-        captain.socketId
-      );
-
-      console.log(
-        "Location:",
-        captain.location
-      );
+      if (!hasValidLocation) {
+        console.warn(
+          `⚠️ Captain ${captain._id.toString()} is active but has NO valid GPS location (currently ${JSON.stringify(
+            coords || null
+          )}). Enabling location (or the schema default [0,0] which must be overwritten by the browser GPS) is required before any ride requests can be sent to them.`
+        );
+      }
     });
 
     // -----------------------------------------------
@@ -174,12 +175,41 @@ exports.findNearbyCaptains = async (
         },
       });
 
+    // -----------------------------------------------
+    // Exclude captains whose stored location is the
+    // schema default [0, 0] or missing entirely.
+    //
+    // A captain stuck at [0,0] means the browser GPS
+    // never delivered a reading, so the captain would
+    // silently never receive requests. Filtering them
+    // here (and warning above) makes the problem visible
+    // instead of sending ride requests to a bogus point.
+    // -----------------------------------------------
+
+    const validCaptains =
+      captains.filter((captain) => {
+        const coords =
+          captain.location?.coordinates;
+
+        if (
+          !Array.isArray(coords) ||
+          coords.length !== 2
+        ) {
+          return false;
+        }
+
+        return !(
+          coords[0] === 0 &&
+          coords[1] === 0
+        );
+      });
+
     console.log(
       "🚕 Nearby captains:",
-      captains.length
+      validCaptains.length
     );
 
-    captains.forEach((captain) => {
+    validCaptains.forEach((captain) => {
       console.log(
         "Nearby Captain:",
         captain._id.toString()
@@ -196,7 +226,7 @@ exports.findNearbyCaptains = async (
       );
     });
 
-    return captains;
+    return validCaptains;
 
   } catch (error) {
     console.error(
