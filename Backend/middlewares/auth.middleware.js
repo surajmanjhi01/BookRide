@@ -98,3 +98,70 @@ exports.authCaptain = async (req, res, next) => {
     });
   }
 };
+
+// ==================================================
+// AUTH FOR BOTH RIDERS AND CAPTAINS
+// ==================================================
+//
+// Used by endpoints both roles may call, e.g.:
+//   GET /api/captains/nearby  → the rider Home fetches nearby
+//   captains around the pickup point, while the captain app
+//   may also use the same endpoint.
+
+exports.authUserOrCaptain = async (req, res, next) => {
+  try {
+    const token =
+      req.cookies?.token ||
+      req.headers.authorization?.split(" ")[1];
+
+    if (!token) {
+      return res.status(401).json({
+        success: false,
+        message: "No token provided",
+      });
+    }
+
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+
+    const [user, captain] = await Promise.all([
+      userModel.findById(decoded.id),
+      captainModel.findById(decoded.id),
+    ]);
+
+    if (user) {
+      req.user = user;
+      return next();
+    }
+
+    if (captain) {
+      req.captain = captain;
+      return next();
+    }
+
+    return res.status(401).json({
+      success: false,
+      message: "User or captain not found",
+    });
+  } catch (err) {
+    if (err.name === "TokenExpiredError") {
+      return res.status(401).json({
+        success: false,
+        message: "Token expired",
+        code: "TOKEN_EXPIRED",
+      });
+    }
+
+    if (err.name === "JsonWebTokenError") {
+      return res.status(401).json({
+        success: false,
+        message: "Invalid token",
+        code: "INVALID_TOKEN",
+      });
+    }
+
+    return res.status(401).json({
+      success: false,
+      message: "Unauthorized access",
+    });
+  }
+};

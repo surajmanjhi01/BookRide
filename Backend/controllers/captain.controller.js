@@ -307,7 +307,7 @@ exports.getNearbyCaptains = async (req, res) => {
   try {
     const { lng, lat } = req.query;
 
-    if (!lng || !lat) {
+    if (lng===undefined || lat===undefined) {
       return res.status(400).json({
         success: false,
         message: "Longitude and latitude are required",

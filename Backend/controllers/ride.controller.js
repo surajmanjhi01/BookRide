@@ -234,10 +234,42 @@ exports.createRide = async (req, res) => {
         const captainId =
           captain._id.toString();
 
-        const socketId =
+        let socketId =
           captainSockets?.get(
             captainId
           );
+
+        // ==================================================
+        // FALLBACK: the in-memory socket map can be missing
+        // an entry even though the captain's tab is open
+        // (e.g. the server restarted and the client
+        // auto-reconnected, or the join-captain mapping was
+        // lost). The captain document still holds its DB
+        // socketId — if that socket is a live connection on
+        // this server, deliver the ride request directly
+        // instead of dropping it into the pending queue.
+        // ==================================================
+
+        if (
+          !socketId &&
+          captain.socketId
+        ) {
+
+          const liveSocket =
+            io?.sockets?.sockets?.get(
+              captain.socketId
+            );
+
+          if (liveSocket) {
+
+            socketId =
+              captain.socketId;
+
+            console.log(
+              `🔁 Captain ${captainId} socket recovered via DB socketId fallback`
+            );
+          }
+        }
 
         // ==================================================
         // CAPTAIN HAS NO SOCKET

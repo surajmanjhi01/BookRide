@@ -441,6 +441,121 @@ socket.on("join-rider", ({ userId } = {}) => {
     }
   }
 );
+// ==================================================
+// GET NEARBY ONLINE CAPTAINS
+// ==================================================
+
+socket.on(
+  "get-nearby-captains",
+  async ({ latitude, longitude }) => {
+
+    try {
+
+      // ----------------------------------------------
+      // SECURITY
+      // ----------------------------------------------
+
+      if (
+        socket.authenticatedRole !== "user"
+      ) {
+        return;
+      }
+
+      // ----------------------------------------------
+      // VALIDATE LOCATION
+      // ----------------------------------------------
+
+      if (
+        typeof latitude !== "number" ||
+        typeof longitude !== "number"
+      ) {
+
+        console.log(
+          "❌ Invalid rider coordinates"
+        );
+
+        return;
+      }
+
+      // ----------------------------------------------
+      // FIND NEARBY ONLINE CAPTAINS
+      // ----------------------------------------------
+
+      const captains =
+        await captainModel.find({
+
+          status: "active",
+
+          socketId: {
+            $ne: null,
+          },
+
+          location: {
+            $near: {
+              $geometry: {
+                type: "Point",
+
+                coordinates: [
+                  longitude,
+                  latitude,
+                ],
+              },
+
+              $maxDistance:
+                5000,
+            },
+          },
+
+        })
+        .select(
+          "_id location status"
+        );
+
+      // ----------------------------------------------
+      // FORMAT CAPTAINS
+      // ----------------------------------------------
+
+      const nearbyCaptains =
+        captains.map(
+          (captain) => ({
+
+            captainId:
+              captain._id.toString(),
+
+            latitude:
+              captain.location
+                ?.coordinates?.[1],
+
+            longitude:
+              captain.location
+                ?.coordinates?.[0],
+
+          })
+        );
+
+      // ----------------------------------------------
+      // SEND TO RIDER
+      // ----------------------------------------------
+
+      socket.emit(
+        "nearby-captains",
+        nearbyCaptains
+      );
+
+      console.log(
+        `🚕 Sent ${nearbyCaptains.length} nearby captains`
+      );
+
+    } catch (error) {
+
+      console.error(
+        "❌ Nearby captains error:",
+        error
+      );
+
+    }
+  }
+);
 
   // ==================================================
   // DISCONNECT
