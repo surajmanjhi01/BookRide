@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { Link ,useNavigate} from "react-router-dom";
 import axios from "axios";
 import {UserDataContext} from "../context/userContext";
+import { clearRiderRideState } from "../constants/riderStorage";
 
 const UserSignup = () => {
   const [userData, setUserData] = useState({
@@ -30,6 +31,9 @@ const {user,setUser}=React.useContext(UserDataContext)
         const data=response.data
     setUser(data.user)
     localStorage.setItem('user', data.token);
+    // Always start a brand-new session from a fresh home page —
+    // never restore the previous session's pickup / destination.
+    clearRiderRideState();
       navigate('/home');
      }
   };

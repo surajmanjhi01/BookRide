@@ -10,6 +10,7 @@ import VehiclePanel from "../components/VehiclePanel";
 import api from "../services/axios";
 import MapView from "../components/MapView";
 import socket from "../services/riderSocket";
+import { RIDER_STORAGE_KEYS } from "../constants/riderStorage";
 
 import gsap from "gsap";
 import { useGSAP } from "@gsap/react";
@@ -47,13 +48,6 @@ const reverseGeocode = async (lat, lng) => {
 // ============================================================
 // LOCALSTORAGE HELPERS (PAGE REFRESH PERSISTENCE)
 // ============================================================
-
-const STORAGE_KEYS = {
-  pickup: "uber_pickup",
-  destination: "uber_destination",
-  pickupCoordinates: "uber_pickup_coordinates",
-  destinationCoordinates: "uber_destination_coordinates",
-};
 
 // Safely read a plain-text value; never throws.
 const readStoredText = (key) => {
@@ -135,11 +129,11 @@ const Home = () => {
   // ============================================================
 
   const [pickup, setPickup] = useState(() =>
-    readStoredText(STORAGE_KEYS.pickup)
+    readStoredText(RIDER_STORAGE_KEYS.pickup)
   );
 
   const [destination, setDestination] = useState(() =>
-    readStoredText(STORAGE_KEYS.destination)
+    readStoredText(RIDER_STORAGE_KEYS.destination)
   );
 
   const [pickupSuggestions, setPickupSuggestions] =
@@ -151,14 +145,14 @@ const Home = () => {
   const [pickupCoordinates, setPickupCoordinates] =
     useState(() =>
       readStoredCoordinates(
-        STORAGE_KEYS.pickupCoordinates
+        RIDER_STORAGE_KEYS.pickupCoordinates
       )
     );
 
   const [destinationCoordinates, setDestinationCoordinates] =
     useState(() =>
       readStoredCoordinates(
-        STORAGE_KEYS.destinationCoordinates
+        RIDER_STORAGE_KEYS.destinationCoordinates
       )
     );
 
@@ -253,6 +247,14 @@ const Home = () => {
   const hasInitializedLocation =
     useRef(false);
 
+  // Becomes true ONLY when the rider actively chooses a destination
+  // in this session. It prevents the fare / vehicle panel from being
+  // computed automatically on login just because the previous
+  // session's destination was restored from localStorage — which
+  // previously blocked entering pickup / destination on login.
+  const hasUserChosenDestination =
+    useRef(false);
+
   // ============================================================
   // PERSIST RIDER STATE ACROSS PAGE REFRESHES
   //
@@ -263,23 +265,23 @@ const Home = () => {
   // ============================================================
 
   useEffect(() => {
-    persistValue(STORAGE_KEYS.pickup, pickup);
+    persistValue(RIDER_STORAGE_KEYS.pickup, pickup);
   }, [pickup]);
 
   useEffect(() => {
-    persistValue(STORAGE_KEYS.destination, destination);
+    persistValue(RIDER_STORAGE_KEYS.destination, destination);
   }, [destination]);
 
   useEffect(() => {
     persistValue(
-      STORAGE_KEYS.pickupCoordinates,
+      RIDER_STORAGE_KEYS.pickupCoordinates,
       pickupCoordinates
     );
   }, [pickupCoordinates]);
 
   useEffect(() => {
     persistValue(
-      STORAGE_KEYS.destinationCoordinates,
+      RIDER_STORAGE_KEYS.destinationCoordinates,
       destinationCoordinates
     );
   }, [destinationCoordinates]);
@@ -736,6 +738,67 @@ const Home = () => {
         }
       );
     };
+
+    // ==========================================================
+    // RIDE COMPLETED
+    // ==========================================================
+
+    const handleRideCompleted = (
+      data
+    ) => {
+      console.log(
+        "================================="
+      );
+
+      console.log(
+        "🏁 RIDE COMPLETED"
+      );
+
+      console.log(
+        "Ride completed data:",
+        data
+      );
+
+      console.log(
+        "================================="
+      );
+
+      // --------------------------------------------------------
+      // Reset the rider UI back to the initial "Where to?" state
+      // so a new trip can be booked right away.
+      // --------------------------------------------------------
+
+      setRide(null);
+      setRideStatus(null);
+      setRideOtp("");
+      setCaptainLocation(null);
+      setNearbyCaptains([]);
+      setRouteCoordinates([]);
+      setDistance(null);
+      setDuration(null);
+      setFare(null);
+      setSelectedVehicle(null);
+      setMapSelectionMode(null);
+      setPanelOpen(false);
+
+      // --------------------------------------------------------
+      // Wipe pickup / destination (and their coordinates). The
+      // persistValue effects below then remove the matching
+      // localStorage keys, so the next login / refresh starts
+      // clean instead of auto-restoring the completed trip's
+      // destination — which is what auto-opened the vehicle panel.
+      // --------------------------------------------------------
+
+      setPickup("");
+      setDestination("");
+      setPickupCoordinates(null);
+      setDestinationCoordinates(null);
+
+      // The destination is gone → no fare should ever be re-triggered
+      // from stale restored state in this session.
+      hasUserChosenDestination.current = false;
+    };
+
   // ==========================================================
     // REGISTER SOCKET LISTENERS
     // ==========================================================
@@ -778,6 +841,11 @@ const Home = () => {
     socket.on(
       "captain-location-update",
       handleCaptainLocation
+    );
+
+    socket.on(
+      "ride-completed",
+      handleRideCompleted
     );
 
     // ==========================================================
@@ -851,6 +919,11 @@ const Home = () => {
       socket.off(
         "captain-location-update",
         handleCaptainLocation
+      );
+
+      socket.off(
+        "ride-completed",
+        handleRideCompleted
       );
 
       // IMPORTANT:
@@ -1193,6 +1266,10 @@ const Home = () => {
           ),
         });
 
+        // The rider actively picked a destination → from now on the
+        // fare / vehicle panel may be shown for this session.
+        hasUserChosenDestination.current = true;
+
         setDestinationSuggestions([]);
       }
 
@@ -1309,6 +1386,11 @@ const Home = () => {
 
       setDestinationCoordinates(coordinates);
 
+      // Dragging the destination marker is an active destination
+      // choice for this session → allow the fare / vehicle panel
+      // to be (re)computed afterwards.
+      hasUserChosenDestination.current = true;
+
       reverseGeocode(
         coordinates.lat,
         coordinates.lng
@@ -1364,6 +1446,10 @@ const Home = () => {
           lat,
           lng,
         });
+
+        // The rider actively picked a destination → from now on the
+        // fare / vehicle panel may be shown for this session.
+        hasUserChosenDestination.current = true;
 
         const address =
           await reverseGeocode(
@@ -1884,6 +1970,14 @@ const Home = () => {
       setDuration(null);
       setFare(null);
       setSelectedVehicle(null);
+      return;
+    }
+
+    // Never auto-compute the fare on login / refresh purely from
+    // restored state — that made the vehicle panel open immediately
+    // and blocked entering pickup + destination. Only an active
+    // destination choice in this session may trigger it.
+    if (!hasUserChosenDestination.current) {
       return;
     }
 
@@ -2412,8 +2506,38 @@ const Home = () => {
              VEHICLE PANEL
           ================================================== */
 
-          <VehiclePanel
-            fare={fare}
+          <div>
+
+            {/* --------------------------------------------------
+                BACK / EDIT
+                If the vehicle panel is open, let the rider go
+                back and change pickup / destination instead of
+                being locked into the fare selection screen.
+            -------------------------------------------------- */}
+
+            <button
+              type="button"
+              onClick={() => {
+                setFare(null);
+                setSelectedVehicle(null);
+              }}
+              className="
+                mb-3
+                bg-gray-100
+                text-gray-700
+                text-sm
+                font-semibold
+                px-3
+                py-2
+                rounded-lg
+                hover:bg-gray-200
+              "
+            >
+              ← Edit Pickup / Destination
+            </button>
+
+            <VehiclePanel
+              fare={fare}
 
             selectedVehicle={
               selectedVehicle
@@ -2431,6 +2555,8 @@ const Home = () => {
               rideLoading
             }
           />
+
+          </div>
 
         ) : (
 

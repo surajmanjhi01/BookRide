@@ -936,6 +936,40 @@ const CaptainHome = () => {
               longitude,
             }
           );
+          // ------------------------------------------------------
+          // REAL-TIME LOCATION → send to backend so it can forward
+          // it to the rider (only meaningful when on a ride).
+          // ------------------------------------------------------
+
+          if (socket.connected) {
+            socket.emit(
+              "captain-location",
+              {
+                rideId:
+                  currentRideRef.current?.rideId ||
+                  null,
+
+                latitude,
+                longitude,
+              }
+            );
+
+            console.log(
+              "📡 Captain location sent via Socket.IO:",
+              {
+                rideId:
+                  currentRideRef.current?.rideId ||
+                  null,
+
+                latitude,
+                longitude,
+              }
+            );
+          } else {
+            console.warn(
+              "⚠️ Socket disconnected — location not sent in real time"
+            );
+          }
 
           setLocation({
             latitude,
