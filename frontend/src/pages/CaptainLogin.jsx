@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { CaptainDataContext } from "../context/CaptainContext.jsx";
 import axios from "axios";
+import API_BASE_URL from "../config";
 
 const CaptainLogin = () => {
   const [email, setEmail] = useState("");
@@ -15,7 +16,7 @@ const CaptainLogin = () => {
 
     try {
       const response = await axios.post(
-        `${import.meta.env.VITE_BASE_URL}/api/captains/login`,
+        `${API_BASE_URL}/api/captains/login`,
         {
           email,
           password,

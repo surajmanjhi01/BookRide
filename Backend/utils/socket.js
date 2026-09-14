@@ -1,5 +1,6 @@
 const jwt = require("jsonwebtoken");
 const captainModel = require("../models/captain.model");
+const { allowedOrigins } = require("./cors");
 
 let io;
 
@@ -9,7 +10,7 @@ const initSocket = (server) => {
 
   io = new Server(server, {
     cors: {
-      origin: "http://localhost:5173",
+      origin: allowedOrigins,
       credentials: true,
     },
   });

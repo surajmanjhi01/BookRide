@@ -3,6 +3,7 @@ import { Link ,useNavigate} from "react-router-dom";
 import axios from "axios";
 import {UserDataContext} from "../context/userContext";
 import { clearRiderRideState } from "../constants/riderStorage";
+import API_BASE_URL from "../config";
 
 const UserSignup = () => {
   const [userData, setUserData] = useState({
@@ -26,7 +27,7 @@ const {user,setUser}=React.useContext(UserDataContext)
       email: "",
       password: "",
     });
-     const response=await axios.post(`${import.meta.env.VITE_BASE_URL}/api/users/register`,newUser)
+     const response=await axios.post(`${API_BASE_URL}/api/users/register`,newUser)
      if(response.status===201){
         const data=response.data
     setUser(data.user)

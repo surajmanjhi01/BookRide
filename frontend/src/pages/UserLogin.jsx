@@ -5,6 +5,7 @@ import { useNavigate } from "react-router-dom";
 import { UserDataContext } from "../context/userContext.jsx";
 import { clearRiderRideState } from "../constants/riderStorage";
 import axios from "axios";
+import API_BASE_URL from "../config";
 
 const UserLogin = () => {
     const [email, setEmail] = useState("");
@@ -22,7 +23,7 @@ const UserLogin = () => {
         email:email,
         password:password
        }
-      const response=await axios.post(`${import.meta.env.VITE_BASE_URL}/api/users/login`,UserData)
+      const response=await axios.post(`${API_BASE_URL}/api/users/login`,UserData)
       if(response.status===200){
         const data=response.data 
         console.log(data.user)
