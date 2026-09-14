@@ -6,6 +6,7 @@ import React, {
 
 import api from "../services/axios";
 import socket from "../services/socket";
+import MapView from "../components/MapView";
 
 const CaptainHome = () => {
   // ==================================================
@@ -1967,13 +1968,50 @@ const CaptainHome = () => {
       }
     };
 
-  // ==================================================
-  // UI
-  // ==================================================
+    // Show the active ride first; otherwise show the first pending request.
+    // Ride locations use GeoJSON [longitude, latitude] coordinates.
+    const rideForMap = currentRide || rideRequests[0] || null;
 
-  return (
-    <div className="min-h-screen bg-gray-100 p-5">
+    const toMapCoordinates = (rideLocation) => {
+      const coordinates = rideLocation?.location?.coordinates;
 
+      if (!Array.isArray(coordinates) || coordinates.length !== 2) {
+        return null;
+      }
+
+      const [lng, lat] = coordinates;
+
+      if (!Number.isFinite(lng) || !Number.isFinite(lat)) {
+        return null;
+      }
+
+      return { lng, lat };
+    };
+
+    const mapPickupCoordinates = toMapCoordinates(rideForMap?.pickup);
+    const mapDestinationCoordinates = toMapCoordinates(rideForMap?.destination);
+
+    return (
+      <div className="min-h-screen bg-gray-100 p-5">
+
+        {rideForMap && (
+          <section className="bg-white rounded-2xl shadow-md p-4 mb-5">
+            <h2 className="text-xl font-semibold mb-3">Ride Location</h2>
+            {mapPickupCoordinates ? (
+              <div className="w-full h-[350px] rounded-xl overflow-hidden">
+                <MapView
+                  pickupCoordinates={mapPickupCoordinates}
+                  destinationCoordinates={mapDestinationCoordinates}
+                  readOnly={true}
+                />
+              </div>
+            ) : (
+              <p className="text-sm text-gray-500">
+                Pickup coordinates are not available for this ride yet.
+              </p>
+            )}
+          </section>
+        )}
       {/* ================================================
           HEADER
       ================================================ */}

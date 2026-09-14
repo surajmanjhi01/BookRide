@@ -606,6 +606,29 @@ socket.on(
         console.log(
           `Captain ${captainId} socketId cleared`
         );
+
+        // ------------------------------------------
+        // NOTIFY RIDERS — captain is no longer online
+        // ------------------------------------------
+        // Broadcast so every open rider map instantly
+        // removes this captain's marker instead of
+        // waiting for the next nearby-captains poll.
+        // ------------------------------------------
+
+        userSockets.forEach(
+          (riderSocketId) => {
+            io.to(riderSocketId).emit(
+              "captain-offline",
+              {
+                captainId,
+              }
+            );
+          }
+        );
+
+        console.log(
+          `📡 captain-offline broadcast for captain ${captainId}`
+        );
       }
     }
 

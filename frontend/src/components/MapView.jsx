@@ -1,3 +1,4 @@
+
 import { useEffect, useRef } from "react";
 import * as maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
@@ -8,22 +9,14 @@ import "maplibre-gl/dist/maplibre-gl.css";
 
 const openStreetMapStyle = {
   version: 8,
-
   sources: {
     openstreetmap: {
       type: "raster",
-
-      tiles: [
-        "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
-      ],
-
+      tiles: ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"],
       tileSize: 256,
-
-      attribution:
-        "© OpenStreetMap contributors",
+      attribution: "© OpenStreetMap contributors",
     },
   },
-
   layers: [
     {
       id: "openstreetmap",
@@ -35,76 +28,40 @@ const openStreetMapStyle = {
 
 // ==================================================
 // MAP VIEW
-//
-// MapView handles ONLY map rendering. All API calls,
-// GPS logic and ride state live in Home.jsx.
 // ==================================================
 
 const MapView = ({
   userLocation,
-
   pickupCoordinates,
   destinationCoordinates,
-
   routeCoordinates = [],
-
-  // Nearby online captains
   nearbyCaptains = [],
-
-  // Accepted captain's live location
   captainLocation,
-
-  // Manual map selection mode: null | "pickup" | "destination"
   mapSelectionMode,
-
-  // Fired with { lat, lng } when the user clicks the map
-  // while mapSelectionMode is active
   onMapLocationSelect,
-
-  // Coordinate setters (Home may pass wrapped versions that
-  // also reverse-geocode and recalculate the route / fare)
   setPickupCoordinates = () => {},
   setDestinationCoordinates = () => {},
+  readOnly = false,
 }) => {
-
   // ==================================================
   // MAP REFERENCES
   // ==================================================
 
   const mapContainer = useRef(null);
-
   const map = useRef(null);
 
   // ==================================================
   // MARKERS
   // ==================================================
 
-  // 📍 User GPS
-  const userLocationMarker =
-    useRef(null);
+  const userLocationMarker = useRef(null);
+  const pickupMarker = useRef(null);
+  const destinationMarker = useRef(null);
+  const captainMarker = useRef(null);
+  const nearbyCaptainMarkers = useRef(new Map());
 
-  // 🟢 Pickup
-  const pickupMarker =
-    useRef(null);
-
-  // 🔴 Destination
-  const destinationMarker =
-    useRef(null);
-
-  // 🚖 Accepted captain
-  const captainMarker =
-    useRef(null);
-
-  // 🚕 Nearby captains — keyed by captain _id so markers are
-  // created once and updated in place (never duplicated).
-  const nearbyCaptainMarkers =
-    useRef(new Map());
-
-  // Always point at the latest onMapLocationSelect callback.
-  // This prevents stale closures and guarantees the map-click
-  // listener is attached/removed exactly once per mode change.
-  const onMapLocationSelectRef =
-    useRef(onMapLocationSelect);
+  // Always use the latest map-click callback.
+  const onMapLocationSelectRef = useRef(onMapLocationSelect);
 
   useEffect(() => {
     onMapLocationSelectRef.current = onMapLocationSelect;
@@ -115,57 +72,31 @@ const MapView = ({
   // ==================================================
 
   useEffect(() => {
+    if (map.current || !mapContainer.current) return;
 
-    if (map.current) return;
-
-    if (!mapContainer.current) return;
-
-    map.current =
-      new maplibregl.Map({
-
-        container:
-          mapContainer.current,
-
-        style:
-          openStreetMapStyle,
-
-        center: [
-          85.324,
-          23.3441,
-        ],
-
-        zoom: 13,
-      });
-
-    // Navigation controls
+    map.current = new maplibregl.Map({
+      container: mapContainer.current,
+      style: openStreetMapStyle,
+      center: [85.324, 23.3441],
+      zoom: 13,
+    });
 
     map.current.addControl(
-
       new maplibregl.NavigationControl(),
-
       "top-right"
     );
 
-    // ==================================================
-    // CLEANUP MAP
-    // ==================================================
-
     return () => {
-
-      const removeMarker =
-        (marker) => {
-          if (marker) marker.remove();
-        };
+      const removeMarker = (marker) => {
+        if (marker) marker.remove();
+      };
 
       removeMarker(userLocationMarker.current);
       removeMarker(pickupMarker.current);
       removeMarker(destinationMarker.current);
       removeMarker(captainMarker.current);
 
-      nearbyCaptainMarkers.current.forEach(
-        (marker) => marker.remove()
-      );
-
+      nearbyCaptainMarkers.current.forEach((marker) => marker.remove());
       nearbyCaptainMarkers.current.clear();
 
       userLocationMarker.current = null;
@@ -174,50 +105,26 @@ const MapView = ({
       captainMarker.current = null;
 
       if (map.current) {
-
         map.current.remove();
-
         map.current = null;
       }
     };
   }, []);
 
-// ==================================================
-  // 📍 USER LIVE LOCATION MARKER
+  // ==================================================
+  // USER LIVE LOCATION MARKER
   // ==================================================
 
   useEffect(() => {
+    if (!map.current || !userLocation) return;
 
-    if (
-      !map.current ||
-      !userLocation
-    ) {
-      return;
-    }
+    const lng = Number(userLocation.lng);
+    const lat = Number(userLocation.lat);
 
-    const lng =
-      Number(userLocation.lng);
+    if (Number.isNaN(lng) || Number.isNaN(lat)) return;
 
-    const lat =
-      Number(userLocation.lat);
-
-    if (
-      Number.isNaN(lng) ||
-      Number.isNaN(lat)
-    ) {
-      return;
-    }
-
-    // ------------------------------------------------
-    // CREATE USER MARKER
-    // ------------------------------------------------
-
-    if (
-      !userLocationMarker.current
-    ) {
-
-      const markerElement =
-        document.createElement("div");
+    if (!userLocationMarker.current) {
+      const markerElement = document.createElement("div");
 
       markerElement.style.width = "18px";
       markerElement.style.height = "18px";
@@ -228,871 +135,432 @@ const MapView = ({
         "0 0 0 2px rgba(37, 99, 235, 0.35), 0 2px 6px rgba(0, 0, 0, 0.3)";
       markerElement.style.cursor = "default";
 
-      userLocationMarker.current =
-        new maplibregl.Marker({
+      userLocationMarker.current = new maplibregl.Marker({
+        element: markerElement,
+        anchor: "center",
+      })
+        .setLngLat([lng, lat])
+        .addTo(map.current);
 
-          element:
-            markerElement,
-
-          anchor:
-            "center",
-
-        })
-
-          .setLngLat([
-            lng,
-            lat,
-          ])
-
-          .addTo(
-            map.current
-          );
-
-      // Center the map on the user's first detected position
+      // Center on the user's first detected position.
       map.current.flyTo({
-
-        center: [
-          lng,
-          lat,
-        ],
-
+        center: [lng, lat],
         zoom: 14,
-
       });
+    } else {
+      userLocationMarker.current.setLngLat([lng, lat]);
     }
-
-    // ------------------------------------------------
-    // UPDATE USER MARKER
-    // ------------------------------------------------
-
-    else {
-
-      userLocationMarker.current.setLngLat([
-        lng,
-        lat,
-      ]);
-    }
-
-  }, [
-    userLocation,
-  ]);
+  }, [userLocation]);
 
   // ==================================================
-  // 🟢 PICKUP MARKER — draggable
+  // PICKUP MARKER
+  // Draggable for riders; read-only for captains.
   // ==================================================
 
   useEffect(() => {
+    if (!map.current || !pickupCoordinates) return;
 
-    if (
-      !map.current ||
-      !pickupCoordinates
-    ) {
-      return;
+    const lng = Number(pickupCoordinates.lng);
+    const lat = Number(pickupCoordinates.lat);
+
+    if (Number.isNaN(lng) || Number.isNaN(lat)) return;
+
+    if (!pickupMarker.current) {
+      pickupMarker.current = new maplibregl.Marker({
+        color: "#16A34A",
+        draggable: !readOnly,
+      })
+        .setLngLat([lng, lat])
+        .addTo(map.current);
+
+      pickupMarker.current.on("dragend", () => {
+        // Extra guard: never update coordinates in read-only mode.
+        if (readOnly) return;
+
+        const position = pickupMarker.current?.getLngLat();
+        if (!position) return;
+
+        setPickupCoordinates({
+          lng: position.lng,
+          lat: position.lat,
+        });
+      });
+    } else {
+      // Also handles readOnly changing after the marker is created.
+      pickupMarker.current.setDraggable(!readOnly);
+      pickupMarker.current.setLngLat([lng, lat]);
     }
-
-    const lng =
-      Number(pickupCoordinates.lng);
-
-    const lat =
-      Number(pickupCoordinates.lat);
-
-    if (
-      Number.isNaN(lng) ||
-      Number.isNaN(lat)
-    ) {
-      return;
-    }
-
-    // ------------------------------------------------
-    // CREATE PICKUP MARKER
-    // ------------------------------------------------
-
-    if (
-      !pickupMarker.current
-    ) {
-
-      pickupMarker.current =
-        new maplibregl.Marker({
-
-          color:
-            "#16A34A",
-
-          draggable:
-            true,
-
-        })
-
-          .setLngLat([
-            lng,
-            lat,
-          ])
-
-          .addTo(
-            map.current
-          );
-
-      // ----------------------------------------------
-      // DRAG PICKUP → update coordinates in Home.
-      // Home reverse-geocodes the address and
-      // recalculates the route / fare automatically.
-      // ----------------------------------------------
-
-      pickupMarker.current.on(
-
-        "dragend",
-
-        () => {
-
-          const position =
-            pickupMarker.current?.getLngLat();
-
-          if (!position) return;
-
-          setPickupCoordinates({
-
-            lng:
-              position.lng,
-
-            lat:
-              position.lat,
-
-          });
-        }
-      );
-    }
-
-    // ------------------------------------------------
-    // UPDATE PICKUP MARKER
-    // ------------------------------------------------
-
-    else {
-
-      pickupMarker.current.setLngLat([
-        lng,
-        lat,
-      ]);
-    }
-
-  }, [
-    pickupCoordinates,
-    setPickupCoordinates,
-  ]);
+  }, [pickupCoordinates, setPickupCoordinates, readOnly]);
 
   // ==================================================
-  // 🔴 DESTINATION MARKER — draggable
+  // DESTINATION MARKER
+  // Draggable for riders; read-only for captains.
   // ==================================================
 
   useEffect(() => {
+    if (!map.current || !destinationCoordinates) return;
 
-    if (
-      !map.current ||
-      !destinationCoordinates
-    ) {
-      return;
+    const lng = Number(destinationCoordinates.lng);
+    const lat = Number(destinationCoordinates.lat);
+
+    if (Number.isNaN(lng) || Number.isNaN(lat)) return;
+
+    if (!destinationMarker.current) {
+      destinationMarker.current = new maplibregl.Marker({
+        color: "#DC2626",
+        draggable: !readOnly,
+      })
+        .setLngLat([lng, lat])
+        .addTo(map.current);
+
+      destinationMarker.current.on("dragend", () => {
+        // Extra guard: never update coordinates in read-only mode.
+        if (readOnly) return;
+
+        const position = destinationMarker.current?.getLngLat();
+        if (!position) return;
+
+        setDestinationCoordinates({
+          lng: position.lng,
+          lat: position.lat,
+        });
+      });
+    } else {
+      // Also handles readOnly changing after the marker is created.
+      destinationMarker.current.setDraggable(!readOnly);
+      destinationMarker.current.setLngLat([lng, lat]);
     }
+  }, [destinationCoordinates, setDestinationCoordinates, readOnly]);
 
-    const lng =
-      Number(destinationCoordinates.lng);
-
-    const lat =
-      Number(destinationCoordinates.lat);
-
-    if (
-      Number.isNaN(lng) ||
-      Number.isNaN(lat)
-    ) {
-      return;
-    }
-
-    // ------------------------------------------------
-    // CREATE DESTINATION MARKER
-    // ------------------------------------------------
-
-    if (
-      !destinationMarker.current
-    ) {
-
-      destinationMarker.current =
-        new maplibregl.Marker({
-
-          color:
-            "#DC2626",
-
-          draggable:
-            true,
-
-        })
-
-          .setLngLat([
-            lng,
-            lat,
-          ])
-
-          .addTo(
-            map.current
-          );
-
-      // ----------------------------------------------
-      // DRAG DESTINATION → update coordinates in Home.
-      // recalculates the route / fare automatically.
-      // ----------------------------------------------
-
-      destinationMarker.current.on(
-
-        "dragend",
-
-        () => {
-
-          const position =
-            destinationMarker.current?.getLngLat();
-
-          if (!position) return;
-
-          setDestinationCoordinates({
-
-            lng:
-              position.lng,
-
-            lat:
-              position.lat,
-
-          });
-        }
-      );
-    }
-
-    // ------------------------------------------------
-    // UPDATE DESTINATION MARKER
-    // ------------------------------------------------
-
-    else {
-
-      destinationMarker.current.setLngLat([
-        lng,
-        lat,
-      ]);
-    }
-
-  }, [
-    destinationCoordinates,
-    setDestinationCoordinates,
-  ]);
-
-// ==================================================
-  // 🚕 NEARBY ONLINE CAPTAINS
-  //
-  // Markers are stored in a Map keyed by captain _id:
-  //  - created once,
-  //  - updated in place when a captain moves,
-  //  - removed when a captain disappears,
-  //  - never duplicated.
-  // As soon as an accepted captain is being tracked
-  // (captainLocation), ALL nearby markers are removed.
+  // ==================================================
+  // NEARBY ONLINE CAPTAINS
   // ==================================================
 
-  const hasAcceptedCaptain =
-    Boolean(captainLocation);
+  const hasAcceptedCaptain = Boolean(captainLocation);
 
   useEffect(() => {
-
     if (!map.current) return;
 
-    // ------------------------------------------------
-    // Ride accepted → remove all nearby markers
-    // ------------------------------------------------
-
+    // Ride accepted: remove all nearby-captain markers.
     if (hasAcceptedCaptain) {
-
-      nearbyCaptainMarkers.current.forEach(
-        (marker) => marker.remove()
-      );
-
+      nearbyCaptainMarkers.current.forEach((marker) => marker.remove());
       nearbyCaptainMarkers.current.clear();
-
       return;
     }
 
     const seenIds = new Set();
 
-    nearbyCaptains.forEach(
-      (captain) => {
+    nearbyCaptains.forEach((captain) => {
+      const id = captain?._id?.toString();
+      const coordinates = captain?.location?.coordinates;
 
-        const id =
-          captain?._id?.toString();
+      if (!id || !coordinates || coordinates.length !== 2) return;
 
-        const coordinates =
-          captain?.location?.coordinates;
+      // GeoJSON: coordinates[0] = longitude, coordinates[1] = latitude.
+      const [lng, lat] = coordinates;
 
-        if (
-          !id ||
-          !coordinates ||
-          coordinates.length !== 2
-        ) {
-          return;
+      if (typeof lng !== "number" || typeof lat !== "number") return;
+
+      seenIds.add(id);
+
+      const existing = nearbyCaptainMarkers.current.get(id);
+
+      if (existing) {
+        const position = existing.getLngLat();
+
+        if (position.lng !== lng || position.lat !== lat) {
+          existing.setLngLat([lng, lat]);
         }
 
-        const [
-          lng,
-          lat,
-        ] = coordinates;
-
-        // GeoJSON: coordinates[0] = longitude,
-        //          coordinates[1] = latitude
-
-        if (
-          typeof lng !== "number" ||
-          typeof lat !== "number"
-        ) {
-          return;
-        }
-
-        seenIds.add(id);
-
-        // ----------------------------------------------
-        // Marker already exists → update in place
-        // ----------------------------------------------
-
-        const existing =
-          nearbyCaptainMarkers.current.get(id);
-
-        if (existing) {
-
-          const position =
-            existing.getLngLat();
-
-          if (
-            position.lng !== lng ||
-            position.lat !== lat
-          ) {
-            existing.setLngLat([
-              lng,
-              lat,
-            ]);
-          }
-
-          return;
-        }
-
-        // ----------------------------------------------
-        // Create marker element
-        // ----------------------------------------------
-
-        const markerElement =
-          document.createElement("div");
-
-        markerElement.innerHTML =
-          "🚕";
-
-        markerElement.style.fontSize =
-          "28px";
-
-        markerElement.style.cursor =
-          "pointer";
-
-        markerElement.style.filter =
-          "drop-shadow(0px 2px 2px rgba(0,0,0,0.4))";
-
-        // ----------------------------------------------
-        // Create marker
-        // ----------------------------------------------
-
-        const marker =
-          new maplibregl.Marker({
-
-            element:
-              markerElement,
-
-            anchor:
-              "center",
-
-          })
-
-            .setLngLat([
-              lng,
-              lat,
-            ])
-
-            .setPopup(
-
-              new maplibregl.Popup({
-
-                offset:
-                  25,
-
-              })
-
-                .setHTML(`
-
-                  <div style="
-                    min-width: 130px;
-                    padding: 5px;
-                  ">
-
-                    <strong>
-                      🚕 ${
-                        captain.fullname?.firstname ||
-                        "Captain"
-                      }
-                    </strong>
-
-                    <br/>
-
-                    <span>
-                      ${
-                        captain.vehicle?.vehicleType ||
-                        ""
-                      }
-                    </span>
-
-                  </div>
-
-                `)
-            )
-
-            .addTo(
-              map.current
-            );
-
-        nearbyCaptainMarkers.current.set(
-          id,
-          marker
-        );
+        return;
       }
-    );
 
-    // ------------------------------------------------
-    // Remove markers whose captains disappeared
-    // from the latest API response
-    // ------------------------------------------------
+      const markerElement = document.createElement("div");
+      markerElement.innerHTML = "🚕";
+      markerElement.style.fontSize = "28px";
+      markerElement.style.cursor = "pointer";
+      markerElement.style.filter =
+        "drop-shadow(0px 2px 2px rgba(0,0,0,0.4))";
 
-    nearbyCaptainMarkers.current.forEach(
-      (marker, id) => {
+      const marker = new maplibregl.Marker({
+        element: markerElement,
+        anchor: "center",
+      })
+        .setLngLat([lng, lat])
+        .setPopup(
+          new maplibregl.Popup({ offset: 25 }).setHTML(`
+            <div style="min-width: 130px; padding: 5px;">
+              <strong>
+                🚕 ${captain.fullname?.firstname || "Captain"}
+              </strong>
+              <br />
+              <span>${captain.vehicle?.vehicleType || ""}</span>
+            </div>
+          `)
+        )
+        .addTo(map.current);
 
-        if (!seenIds.has(id)) {
+      nearbyCaptainMarkers.current.set(id, marker);
+    });
 
-          marker.remove();
-
-          nearbyCaptainMarkers.current.delete(id);
-        }
+    // Remove markers for captains absent from the latest response.
+    nearbyCaptainMarkers.current.forEach((marker, id) => {
+      if (!seenIds.has(id)) {
+        marker.remove();
+        nearbyCaptainMarkers.current.delete(id);
       }
-    );
-  }, [
-    nearbyCaptains,
-    hasAcceptedCaptain,
-  ]);
+    });
+  }, [nearbyCaptains, hasAcceptedCaptain]);
 
-// ==================================================
-  // 🚖 ACCEPTED CAPTAIN LIVE LOCATION
-  //
-  // Marker is created once and smoothly moved on each
-  // socket update — never recreated per event.
+  // ==================================================
+  // ACCEPTED CAPTAIN LIVE LOCATION
   // ==================================================
 
   useEffect(() => {
-
     if (!map.current) return;
 
-    // Captain location cleared → remove marker
-
+    // Captain location cleared: remove its marker.
     if (!captainLocation) {
-
       if (captainMarker.current) {
-
         captainMarker.current.remove();
-
         captainMarker.current = null;
       }
 
       return;
     }
 
-    const longitude =
-      Number(captainLocation.longitude);
+    const longitude = Number(captainLocation.longitude);
+    const latitude = Number(captainLocation.latitude);
 
-    const latitude =
-      Number(captainLocation.latitude);
+    if (Number.isNaN(longitude) || Number.isNaN(latitude)) return;
 
-    if (
-      Number.isNaN(longitude) ||
-      Number.isNaN(latitude)
-    ) {
-      return;
-    }
-
-    // ------------------------------------------------
-    // CREATE CAPTAIN MARKER
-    // ------------------------------------------------
-
-    if (
-      !captainMarker.current
-    ) {
-
-      const captainElement =
-        document.createElement(
-          "div"
-        );
-
-      captainElement.innerHTML =
-        "🚖";
-
-      captainElement.style.fontSize =
-        "32px";
-
-      captainElement.style.cursor =
-        "pointer";
-
+    if (!captainMarker.current) {
+      const captainElement = document.createElement("div");
+      captainElement.innerHTML = "🚖";
+      captainElement.style.fontSize = "32px";
+      captainElement.style.cursor = "pointer";
       captainElement.style.filter =
         "drop-shadow(0px 2px 3px rgba(0,0,0,0.5))";
 
-      captainMarker.current =
-        new maplibregl.Marker({
+      captainMarker.current = new maplibregl.Marker({
+        element: captainElement,
+        anchor: "center",
+      })
+        .setLngLat([longitude, latitude])
+        .addTo(map.current);
+    } else {
+      captainMarker.current.setLngLat([longitude, latitude]);
+    }
+  }, [captainLocation]);
 
-          element:
-            captainElement,
+  //polyline 
+  // Add inside MapView, alongside your other useEffect hooks.
+// Assumes pickupCoordinates and destinationCoordinates are { lng, lat }.
 
-          anchor:
-            "center",
+useEffect(() => {
+  const mapInstance = map.current;
 
-        })
+  if (!mapInstance || !pickupCoordinates || !destinationCoordinates) {
+    return;
+  }
 
-          .setLngLat([
-            longitude,
-            latitude,
-          ])
+  const pickup = [
+    Number(pickupCoordinates.lng),
+    Number(pickupCoordinates.lat),
+  ];
 
-          .addTo(
-            map.current
-          );
+  const destination = [
+    Number(destinationCoordinates.lng),
+    Number(destinationCoordinates.lat),
+  ];
+
+  if (
+    !pickup.every(Number.isFinite) ||
+    !destination.every(Number.isFinite)
+  ) {
+    return;
+  }
+
+  const sourceId = "pickup-destination-route";
+  const layerId = "pickup-destination-route-line";
+
+  const updateRouteLine = () => {
+    if (!mapInstance.getSource(sourceId)) {
+      mapInstance.addSource(sourceId, {
+        type: "geojson",
+        data: {
+          type: "Feature",
+          properties: {},
+          geometry: {
+            type: "LineString",
+            coordinates: [pickup, destination],
+          },
+        },
+      });
+    } else {
+      mapInstance.getSource(sourceId).setData({
+        type: "Feature",
+        properties: {},
+        geometry: {
+          type: "LineString",
+          coordinates: [pickup, destination],
+        },
+      });
     }
 
-    // ------------------------------------------------
-    // UPDATE CAPTAIN LOCATION
-    // ------------------------------------------------
-
-    else {
-
-      captainMarker.current.setLngLat([
-        longitude,
-        latitude,
-      ]);
+    if (!mapInstance.getLayer(layerId)) {
+      mapInstance.addLayer({
+        id: layerId,
+        type: "line",
+        source: sourceId,
+        layout: {
+          "line-cap": "round",
+          "line-join": "round",
+        },
+        paint: {
+          "line-color": "#2563EB",
+          "line-width": 5,
+          "line-opacity": 0.85,
+        },
+      });
     }
-  }, [
-    captainLocation,
-  ]);
+  };
 
-// ==================================================
-  // 🗺️ MAP CLICK → SELECT LOCATION
-  //
-  // The listener is attached only while mapSelectionMode
-  // is active and is always removed on cleanup, so
-  // duplicate listeners can never accumulate.
+  if (mapInstance.isStyleLoaded()) {
+    updateRouteLine();
+  } else {
+    mapInstance.once("load", updateRouteLine);
+  }
+
+  return () => {
+    mapInstance.off("load", updateRouteLine);
+  };
+}, [pickupCoordinates, destinationCoordinates]);
+
+  // ==================================================
+  // MAP CLICK — SELECT LOCATION
   // ==================================================
 
   useEffect(() => {
-
     if (!map.current) return;
 
     if (
-      mapSelectionMode !==
-        "pickup" &&
-
-      mapSelectionMode !==
-        "destination"
+      mapSelectionMode !== "pickup" &&
+      mapSelectionMode !== "destination"
     ) {
       return;
     }
 
-    const handleMapClick =
-      (event) => {
+    const handleMapClick = (event) => {
+      const onSelect = onMapLocationSelectRef.current;
 
-        const onSelect =
-          onMapLocationSelectRef.current;
+      if (!onSelect || !event?.lngLat) return;
 
-        if (
-          !onSelect ||
-          !event?.lngLat
-        ) {
-          return;
-        }
+      onSelect({
+        lat: event.lngLat.lat,
+        lng: event.lngLat.lng,
+      });
+    };
 
-        // Exactly one map click selects the location.
-        // Home resets mapSelectionMode to null
-        // immediately after handling this event.
-        onSelect({
-
-          lat:
-            event.lngLat.lat,
-
-          lng:
-            event.lngLat.lng,
-
-        });
-      };
-
-    map.current.on(
-      "click",
-      handleMapClick
-    );
+    map.current.on("click", handleMapClick);
 
     return () => {
-
-      if (
-        map.current
-      ) {
-
-        map.current.off(
-          "click",
-          handleMapClick
-        );
+      if (map.current) {
+        map.current.off("click", handleMapClick);
       }
     };
-  }, [
-    mapSelectionMode,
-  ]);
+  }, [mapSelectionMode]);
 
   // ==================================================
-  // 🛣️ DRAW ROUTE
-  //
-  // GeoJSON source:  "route"
-  // Line layer:      "route-line"
-  //
-  // The source is updated in place with setData()
-  // whenever the route changes; duplicate sources or
-  // layers are never created.
+  // DRAW ROUTE
   // ==================================================
 
   useEffect(() => {
-
     if (!map.current) return;
 
-    // ------------------------------------------------
-    // REMOVE ROUTE IF EMPTY
-    // ------------------------------------------------
-
-    if (
-      !routeCoordinates ||
-      routeCoordinates.length === 0
-    ) {
-
-      if (
-        map.current.getLayer(
-          "route-line"
-        )
-      ) {
-
-        map.current.removeLayer(
-          "route-line"
-        );
+    // Remove route if no route coordinates are provided.
+    if (!routeCoordinates || routeCoordinates.length === 0) {
+      if (map.current.getLayer("route-line")) {
+        map.current.removeLayer("route-line");
       }
 
-      if (
-        map.current.getSource(
-          "route"
-        )
-      ) {
-
-        map.current.removeSource(
-          "route"
-        );
+      if (map.current.getSource("route")) {
+        map.current.removeSource("route");
       }
 
       return;
     }
 
-    // ==================================================
-    // DRAW FUNCTION
-    // ==================================================
+    const drawRoute = () => {
+      if (!map.current) return;
 
-    const drawRoute =
-      () => {
-
-        if (
-          !map.current
-        ) {
-          return;
-        }
-
-        const geojson = {
-
-          type:
-            "Feature",
-
-          properties:
-            {},
-
-          geometry: {
-
-            type:
-              "LineString",
-
-            coordinates:
-              routeCoordinates,
-
-          },
-        };
-
-        // ------------------------------------------------
-        // UPDATE EXISTING ROUTE
-        // ------------------------------------------------
-
-        const source =
-          map.current.getSource(
-            "route"
-          );
-
-        if (
-          source
-        ) {
-
-          source.setData(
-            geojson
-          );
-        }
-
-        // ------------------------------------------------
-        // CREATE NEW ROUTE
-        // ------------------------------------------------
-
-        else {
-
-          map.current.addSource(
-
-            "route",
-
-            {
-
-              type:
-                "geojson",
-
-              data:
-                geojson,
-
-            }
-          );
-        }
-
-        // ------------------------------------------------
-        // CREATE LINE LAYER — exactly once
-        // ------------------------------------------------
-
-        if (
-          !map.current.getLayer(
-            "route-line"
-          )
-        ) {
-
-          map.current.addLayer({
-
-            id:
-              "route-line",
-
-            type:
-              "line",
-
-            source:
-              "route",
-
-            layout: {
-
-              "line-cap":
-                "round",
-
-              "line-join":
-                "round",
-
-            },
-
-            paint: {
-
-              "line-color":
-                "#2563EB",
-
-              "line-width":
-                6,
-
-              "line-opacity":
-                0.9,
-
-            },
-          });
-        }
-
-        // ------------------------------------------------
-        // FIT MAP TO ROUTE
-        // ------------------------------------------------
-
-        if (
-          routeCoordinates.length > 1
-        ) {
-
-          const bounds =
-            new maplibregl.LngLatBounds();
-
-          routeCoordinates.forEach(
-            (coordinate) => {
-
-              bounds.extend(
-                coordinate
-              );
-            }
-          );
-
-          map.current.fitBounds(
-            bounds,
-            {
-
-              padding:
-                80,
-
-              duration:
-                1000,
-
-            }
-          );
-        }
+      const geojson = {
+        type: "Feature",
+        properties: {},
+        geometry: {
+          type: "LineString",
+          coordinates: routeCoordinates,
+        },
       };
 
-    // ==================================================
-    // WAIT FOR MAP STYLE
-    // ==================================================
+      // Update the existing route source.
+      const source = map.current.getSource("route");
 
-    if (
-      map.current.isStyleLoaded()
-    ) {
+      if (source) {
+        source.setData(geojson);
+      } else {
+        map.current.addSource("route", {
+          type: "geojson",
+          data: geojson,
+        });
+      }
 
+      // Create the route layer once.
+      if (!map.current.getLayer("route-line")) {
+        map.current.addLayer({
+          id: "route-line",
+          type: "line",
+          source: "route",
+          layout: {
+            "line-cap": "round",
+            "line-join": "round",
+          },
+          paint: {
+            "line-color": "#2563EB",
+            "line-width": 6,
+            "line-opacity": 0.9,
+          },
+        });
+      }
+
+      // Fit the map to the route.
+      if (routeCoordinates.length > 1) {
+        const bounds = new maplibregl.LngLatBounds();
+
+        routeCoordinates.forEach((coordinate) => {
+          bounds.extend(coordinate);
+        });
+
+        map.current.fitBounds(bounds, {
+          padding: 80,
+          duration: 1000,
+        });
+      }
+    };
+
+    // Wait until the map style is ready.
+    if (map.current.isStyleLoaded()) {
       drawRoute();
+    } else {
+      map.current.once("load", drawRoute);
     }
-
-    else {
-
-      map.current.once(
-        "load",
-        drawRoute
-      );
-    }
-  }, [
-    routeCoordinates,
-  ]);
+  }, [routeCoordinates]);
 
   // ==================================================
   // MAP UI
   // ==================================================
 
-  return (
-
-    <div
-
-      ref={
-        mapContainer
-      }
-
-      className="
-        w-full
-        h-full
-      "
-
-    />
-  );
+  return <div ref={mapContainer} className="w-full h-full" />;
 };
 
 export default MapView;

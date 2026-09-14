@@ -113,6 +113,54 @@ exports.getCaptainProfile = async (req, res,next) => {
 };
 exports.logoutCaptain = async (req, res) => {
   try {
+    // A logged-out captain is no longer available. Mark them
+    // inactive and drop their stored socket id so they vanish
+    // from the rider map and stop receiving ride requests —
+    // otherwise the shared captain socket would keep them
+    // "online" after logout.
+    if (req.captain?._id) {
+      const captainId =
+        req.captain._id;
+
+      const captain =
+        await captainModel.findByIdAndUpdate(
+          captainId,
+          {
+            status: "inactive",
+            socketId: null,
+          },
+          {
+            returnDocument: "after",
+          }
+        );
+
+      if (captain) {
+        const io =
+          req.app.get("io");
+
+        const userSockets =
+          req.app.get("userSockets");
+
+        if (io && userSockets) {
+          userSockets.forEach(
+            (riderSocketId) => {
+              io.to(riderSocketId).emit(
+                "captain-offline",
+                {
+                  captainId:
+                    captainId.toString(),
+                }
+              );
+            }
+          );
+
+          console.log(
+            `📡 captain-offline broadcast for captain ${captainId} (logout)`
+          );
+        }
+      }
+    }
+
     res.clearCookie("token");
     res.status(200).json({
       success: true,
@@ -424,6 +472,40 @@ exports.updateStatus = async (req, res) => {
         success: false,
         message: "Captain not found",
       });
+    }
+
+    // --------------------------------------------------
+    // NOTIFY RIDERS when the captain goes inactive, in case
+    // the captain's socket was NOT dropped (defensive). The
+    // rider map removes the marker instantly either way.
+    // --------------------------------------------------
+
+    if (status === "inactive") {
+      const io =
+        req.app.get("io");
+
+      const userSockets =
+        req.app.get("userSockets");
+
+      if (io && userSockets) {
+        const captainId =
+          captain._id.toString();
+
+        userSockets.forEach(
+          (riderSocketId) => {
+            io.to(riderSocketId).emit(
+              "captain-offline",
+              {
+                captainId,
+              }
+            );
+          }
+        );
+
+        console.log(
+          `📡 captain-offline broadcast for captain ${captainId} (status → inactive)`
+        );
+      }
     }
 
     return res.status(200).json({

@@ -298,6 +298,17 @@ const Home = () => {
   const hasUserChosenDestination =
     useRef(false);
 
+  // Tracks the accepted ride's captain id so the socket handler
+  // (registered once on mount) can clear the LIVE captain marker
+  // the moment that captain goes offline mid-trip.
+  const rideCaptainIdRef =
+    useRef(null);
+
+  useEffect(() => {
+    rideCaptainIdRef.current =
+      ride?.captainId?.toString?.() || null;
+  }, [ride]);
+
   // ============================================================
   // PERSIST RIDER STATE ACROSS PAGE REFRESHES
   //
@@ -871,6 +882,46 @@ const Home = () => {
       hasUserChosenDestination.current = false;
     };
 
+    // ==========================================================
+    // CAPTAIN WENT OFFLINE
+    // ==========================================================
+
+    const handleCaptainOffline = (
+      data
+    ) => {
+      const captainId =
+        data?.captainId;
+
+      if (!captainId) {
+        return;
+      }
+
+      console.log(
+        "🚫 Captain went offline:",
+        captainId
+      );
+
+      // Instantly drop the marker from the nearby list.
+      // No need to wait for the next /api/captains/nearby poll.
+      setNearbyCaptains(
+        (prev) =>
+          prev.filter(
+            (captain) =>
+              captain?._id?.toString() !==
+              captainId
+          )
+      );
+
+      // If this captain was the accepted one, remove
+      // their live-tracking marker too.
+      if (
+        rideCaptainIdRef.current ===
+        captainId
+      ) {
+        setCaptainLocation(null);
+      }
+    };
+
   // ==========================================================
     // REGISTER SOCKET LISTENERS
     // ==========================================================
@@ -918,6 +969,11 @@ const Home = () => {
     socket.on(
       "ride-completed",
       handleRideCompleted
+    );
+
+    socket.on(
+      "captain-offline",
+      handleCaptainOffline
     );
 
     // ==========================================================
@@ -996,6 +1052,11 @@ const Home = () => {
       socket.off(
         "ride-completed",
         handleRideCompleted
+      );
+
+      socket.off(
+        "captain-offline",
+        handleCaptainOffline
       );
 
       // IMPORTANT:
