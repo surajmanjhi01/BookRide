@@ -641,11 +641,51 @@ socket.on(
 // START SERVER
 // ==================================================
 
-server.listen(
-  PORT,
-  () => {
+// --------------------------------------------------
+// CLEAR STALE SOCKET IDs BEFORE LISTENING
+// --------------------------------------------------
+// After a restart the in-memory socket map is empty,
+// but captain documents may still hold socket IDs from
+// the previous process. Those sockets no longer exist,
+// so without this cleanup a departed captain keeps
+// showing as "online" on the rider map forever.
+// Captains with an open dashboard auto-reconnect and
+// re-register their fresh socket ID via "join-captain".
+// --------------------------------------------------
+
+const clearStaleSocketIds =
+  captainModel.updateMany(
+    {
+      socketId: {
+        $ne: null,
+      },
+    },
+    {
+      $set: {
+        socketId: null,
+      },
+    }
+  );
+
+clearStaleSocketIds
+  .then((result) => {
     console.log(
-      `🚀 Server is running on port ${PORT}`
+      `🧹 Cleared ${result.modifiedCount} stale captain socketId(s) at startup`
     );
-  }
-);
+  })
+  .catch((error) => {
+    console.error(
+      "❌ Failed to clear stale captain socket IDs:",
+      error.message
+    );
+  })
+  .finally(() => {
+    server.listen(
+      PORT,
+      () => {
+        console.log(
+          `🚀 Server is running on port ${PORT}`
+        );
+      }
+    );
+  });

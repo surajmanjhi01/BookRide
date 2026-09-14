@@ -370,8 +370,199 @@ exports.createRide = async (req, res) => {
 
 
 // ==================================================
-// ACCEPT RIDE
+// GET ACTIVE RIDE FOR RIDER
+//
+// Restores the rider's in-progress trip after a page refresh
+// (including a "requested" ride that is still searching for a
+// captain), so the rider sees exactly what was on screen before
+// refreshing - the map, the route, and the "Searching for Captain"
+// panel with a working Cancel Ride button.
+
+
+exports.getRiderActiveRide = async (req, res) => {
+
+  try {
+
+    if (!req.user || !req.user._id) {
+      return res.status(401).json({
+        success: false,
+        message: "User authentication required.",
+      });
+    }
+
+    const ride =
+      await rideService.getActiveRideForUser(
+        req.user._id
+      );
+
+    if (!ride) {
+      console.log(
+        `No active ride for rider ${req.user._id.toString()}`
+      );
+    } else {
+      console.log(
+        `Active ride for rider ${req.user._id.toString()}: ${ride._id.toString()} (${ride.status})`
+      );
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: ride
+        ? "Active ride found"
+        : "No active ride",
+      data: ride,
+    });
+
+  } catch (error) {
+
+    console.error(
+      "Get Rider Active Ride Error:",
+      error
+    );
+
+    return res.status(400).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+
+
 // ==================================================
+// CANCEL RIDE (RIDER)
+// ==================================================
+
+exports.cancelRide = async (req, res) => {
+
+  try {
+
+    const { rideId } = req.params;
+
+    if (!rideId) {
+      return res.status(400).json({
+        success: false,
+        message: "Ride ID is required",
+      });
+    }
+
+    if (!req.user || !req.user._id) {
+      return res.status(401).json({
+        success: false,
+        message: "User authentication required.",
+      });
+    }
+
+    const ride =
+      await rideService.cancelRide(
+        rideId,
+        req.user._id
+      );
+
+    console.log(
+      "================================="
+    );
+
+    console.log(
+      `RIDE CANCELLED BY RIDER`
+    );
+
+    console.log(
+      `Ride ID: ${ride._id.toString()}`
+    );
+
+    console.log(
+      `Rider ID: ${req.user._id.toString()}`
+    );
+
+    console.log(
+      "================================="
+    );
+
+    // ==================================================
+    // NOTIFY CAPTAINS
+    // ==================================================
+
+    const io =
+      req.app.get("io");
+
+    const captainSockets =
+      req.app.get("captainSockets");
+
+    const pendingRideRequests =
+      req.app.get("pendingRideRequests");
+
+    // Remove this ride from the in-memory pending queue so a
+    // captain who reconnects later never sees a cancelled ride.
+
+
+
+    if (pendingRideRequests) {
+
+      pendingRideRequests.forEach(
+        (requests, captainId) => {
+
+          const remaining =
+            requests.filter(
+              (request) =>
+                request.rideId !== rideId
+            );
+
+          if (remaining.length > 0) {
+            pendingRideRequests.set(
+              captainId,
+              remaining
+            );
+          } else {
+            pendingRideRequests.delete(
+              captainId
+            );
+          }
+        }
+      );
+    }
+
+    if (io && captainSockets) {
+
+      const cancellationPayload = {
+        rideId,
+        status: "cancelled",
+        pickup: ride.pickup,
+        destination: ride.destination,
+      };
+
+      captainSockets.forEach(
+        (socketId) => {
+          io.to(socketId).emit(
+            "ride-cancelled",
+            cancellationPayload
+          );
+        }
+      );
+
+      console.log(
+        `ride-cancelled broadcast to ${captainSockets.size} captain(s)`
+      );
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Ride cancelled successfully",
+      data: ride,
+    });
+
+  } catch (error) {
+
+    console.error(
+      "Cancel Ride Error:",
+      error
+    );
+
+    return res.status(400).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
 
 exports.acceptRide = async (req, res) => {
   try {
@@ -519,6 +710,71 @@ exports.acceptRide = async (req, res) => {
           ]
         );
       }
+    }
+
+    // ==================================================
+    // NOTIFY OTHER CAPTAINS (RIDE IS NOW TAKEN)
+    // ==================================================
+
+    const captainSockets =
+      req.app.get("captainSockets");
+
+    const pendingRideRequests =
+      req.app.get("pendingRideRequests");
+
+    // Remove this ride from the in-memory pending queue so a
+    // captain who reconnects later never receives a ride that
+    // has already been accepted by someone else.
+
+    if (pendingRideRequests) {
+
+      pendingRideRequests.forEach(
+        (requests, captainId) => {
+
+          const remaining =
+            requests.filter(
+              (request) =>
+                request.rideId !== rideId
+            );
+
+          if (remaining.length > 0) {
+            pendingRideRequests.set(
+              captainId,
+              remaining
+            );
+          } else {
+            pendingRideRequests.delete(
+              captainId
+            );
+          }
+        }
+      );
+    }
+
+    // Broadcast the ride-accepted update to every connected
+    // captain so the now-taken ride request card disappears
+    // from their dashboards. Scoped to captain sockets only,
+    // so the rider's own "ride-accepted" flow is unaffected.
+
+    if (io && captainSockets) {
+
+      const acceptedRidePayload = {
+        rideId,
+        status: "accepted",
+      };
+
+      captainSockets.forEach(
+        (socketId) => {
+          io.to(socketId).emit(
+            "ride-accepted",
+            acceptedRidePayload
+          );
+        }
+      );
+
+      console.log(
+        `ride-accepted broadcast to ${captainSockets.size} captain(s) for ride ${rideId}`
+      );
     }
 
     // ==================================================

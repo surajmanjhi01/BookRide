@@ -37,7 +37,7 @@ const reverseGeocode = async (lat, lng) => {
     return response.data?.data?.address || null;
   } catch (error) {
     console.error(
-      "❌ Reverse geocode failed:",
+      "Reverse geocode failed:",
       error.response?.data || error
     );
 
@@ -94,6 +94,38 @@ const readStoredCoordinates = (key) => {
       error
     );
 
+    return null;
+  }
+};
+
+// Safely read + parse any JSON object stored under a key; never throws.
+const readStoredObject = (key) => {
+  try {
+    const raw =
+      localStorage.getItem(key);
+ 
+    if (!raw) {
+      return null;
+    }
+ 
+    const parsed =
+      JSON.parse(raw);
+ 
+    if (
+      parsed &&
+      typeof parsed === "object" &&
+      !Array.isArray(parsed)
+    ) {
+      return parsed;
+    }
+ 
+    return null;
+  } catch (error) {
+    console.error(
+      `Failed to parse ${key} from localStorage:`,
+      error
+    );
+ 
     return null;
   }
 };
@@ -200,22 +232,33 @@ const Home = () => {
     useState(null);
 
   const [selectedVehicle, setSelectedVehicle] =
-    useState(null);
+    useState(() =>
+      readStoredText(RIDER_STORAGE_KEYS.selectedVehicle) || null
+    );
 
   // ============================================================
   // RIDE STATUS
   // ============================================================
 
   const [ride, setRide] =
-    useState(null);
+    useState(() =>
+      readStoredObject(RIDER_STORAGE_KEYS.ride)
+    );
 
   const [rideOtp, setRideOtp] =
-    useState("");
+    useState(() =>
+      readStoredText(RIDER_STORAGE_KEYS.rideOtp)
+    );
 
   const [rideStatus, setRideStatus] =
-    useState(null);
+    useState(() =>
+      readStoredText(RIDER_STORAGE_KEYS.rideStatus) || null
+    );
 
   const [rideLoading, setRideLoading] =
+    useState(false);
+
+  const [rideCancelling, setRideCancelling] =
     useState(false);
 
   // ============================================================
@@ -285,6 +328,35 @@ const Home = () => {
       destinationCoordinates
     );
   }, [destinationCoordinates]);
+
+  // ----------------------------------------------------------
+  // RIDE STATE (searching / accepted and ride screens)
+  // ----------------------------------------------------------
+
+  useEffect(() => {
+    persistValue(RIDER_STORAGE_KEYS.ride, ride);
+  }, [ride]);
+
+  useEffect(() => {
+    persistValue(
+      RIDER_STORAGE_KEYS.rideStatus,
+      rideStatus || ""
+    );
+  }, [rideStatus]);
+
+  useEffect(() => {
+    persistValue(
+      RIDER_STORAGE_KEYS.rideOtp,
+      rideOtp
+    );
+  }, [rideOtp]);
+
+  useEffect(() => {
+    persistValue(
+      RIDER_STORAGE_KEYS.selectedVehicle,
+      selectedVehicle || ""
+    );
+  }, [selectedVehicle]);
 
   // ============================================================
   // RIDER SOCKET CONNECTION
@@ -416,7 +488,7 @@ const Home = () => {
       );
 
       console.log(
-        "🚀 RIDER SOCKET CONNECTED"
+         "RIDER SOCKET CONNECTED"
       );
 
       console.log(
@@ -944,7 +1016,7 @@ const Home = () => {
   //   - a pickup exists, and
   //   - the ride is NOT accepted / arrived / ongoing
   //
-  // Debounced (400 ms) + aborted on cleanup → the API is never
+  // Debounced (400 ms) + aborted on cleanup — the API is never
   // hammered on every render and re-fetch loops are impossible.
   // When the ride is accepted (or later), nearbyCaptains is
   // cleared and polling stops so the rider only sees the
@@ -964,7 +1036,7 @@ const Home = () => {
       return;
     }
 
-    // No pickup → nothing to search around.
+    // No pickup — nothing to search around.
     if (!pickupCoordinates) {
       setNearbyCaptains([]);
       return;
@@ -1021,7 +1093,7 @@ const Home = () => {
     // visible as if they were still online.
     const interval = setInterval(
       fetchNearbyCaptains,
-      20000
+      10000
     );
 
     return () => {
@@ -1266,7 +1338,7 @@ const Home = () => {
           ),
         });
 
-        // The rider actively picked a destination → from now on the
+        // The rider actively picked a destination — from now on the
         // fare / vehicle panel may be shown for this session.
         hasUserChosenDestination.current = true;
 
@@ -1387,7 +1459,7 @@ const Home = () => {
       setDestinationCoordinates(coordinates);
 
       // Dragging the destination marker is an active destination
-      // choice for this session → allow the fare / vehicle panel
+      // choice for this session — allow the fare / vehicle panel
       // to be (re)computed afterwards.
       hasUserChosenDestination.current = true;
 
@@ -1447,7 +1519,7 @@ const Home = () => {
           lng,
         });
 
-        // The rider actively picked a destination → from now on the
+        // The rider actively picked a destination — from now on the
         // fare / vehicle panel may be shown for this session.
         hasUserChosenDestination.current = true;
 
@@ -1498,7 +1570,7 @@ const Home = () => {
           });
         };
 
-      // Already resolved on load → use it straight away.
+      // Already resolved on load — use it straight away.
       if (userLocation) {
         applyLocation(userLocation);
         setPanelOpen(false);
@@ -1953,6 +2025,128 @@ const Home = () => {
     };
 
   // ============================================================
+  // REUSABLE RIDE FLOW RESETS
+  // ============================================================
+ 
+  // Clears every in-progress ride UI state (but keeps the chosen
+  // pickup / destination so the rider can rebook the same trip
+  // quickly after cancelling).
+  const resetRideFlowState = () => {
+    setRide(null);
+    setRideStatus(null);
+    setRideOtp("");
+    setRideLoading(false);
+    setCaptainLocation(null);
+    setNearbyCaptains([]);
+    setRouteCoordinates([]);
+    setDistance(null);
+    setDuration(null);
+    setFare(null);
+    setSelectedVehicle(null);
+    setMapSelectionMode(null);
+    setPanelOpen(false);
+  };
+ 
+  // Used when the restored ride turns out to no longer exist on the
+  // backend (cancelled / completed / stale) - wipes everything,
+  // including pickup / destination, just like handleRideCompleted.
+
+  const resetAllRideState = () => {
+    resetRideFlowState();
+    setPickup("");
+    setDestination("");
+    setPickupCoordinates(null);
+    setDestinationCoordinates(null);
+    hasUserChosenDestination.current = false;
+  };
+ 
+  // ============================================================
+  // CANCEL RIDE
+  // ============================================================
+ 
+  const handleCancelRide =
+    async () => {
+ 
+      const rideId =
+        ride?._id?.toString() ||
+        ride?.rideId;
+ 
+      if (!rideId) {
+        alert(
+          "Ride ID not found. Please refresh the page."
+        );
+ 
+        return;
+      }
+ 
+      if (
+        !window.confirm(
+          "Are you sure you want to cancel this ride?"
+        )
+      ) {
+        return;
+      }
+ 
+      setRideCancelling(true);
+ 
+      try {
+ 
+        const token =
+          localStorage.getItem(
+            "user"
+          );
+ 
+        if (!token) {
+          alert(
+            "Authentication token not found"
+          );
+ 
+          return;
+        }
+ 
+        await api.patch(
+          `/api/riders/${rideId}/cancel`,
+          {},
+          {
+            headers: {
+              Authorization:
+                `Bearer ${token}`,
+            },
+          }
+        );
+ 
+        // Backend cancelled - reset the rider UI back to the normal
+        // flow. Pickup / destination + map are kept so the rider can
+        // quickly rebook the same trip inspirit of the real Uber app.
+
+        resetRideFlowState();
+ 
+        // The rider still deliberately chose a destination this
+        // session-flow, so future edits may re-open the fare panel.
+
+        hasUserChosenDestination.current = true;
+ 
+        console.log(
+          "Ride cancelled successfully",
+        );
+ 
+      } catch (error) {
+ 
+        console.error(
+          "Cancel Ride Error:",
+          error.response?.data || error
+        );
+ 
+        alert(
+          error.response?.data?.message ||
+          "Failed to cancel ride. Please try again."
+        );
+      } finally {
+        setRideCancelling(false);
+      }
+    };
+ 
+  // ============================================================
   // GET DISTANCE WHEN BOTH LOCATIONS EXIST
   // ============================================================
 
@@ -1963,7 +2157,7 @@ const Home = () => {
       !destinationCoordinates
     ) {
 
-      // Either location was removed → clear stale route / fare so
+      // Either location was removed — clear stale route / fare so
       // the map does not keep showing an outdated polyline.
       setRouteCoordinates([]);
       setDistance(null);
@@ -1993,6 +2187,117 @@ const Home = () => {
     destinationCoordinates,
   ]);
 
+  // ============================================================
+  // RESTORE ACTIVE RIDE AFTER PAGE REFRESH
+  //
+  // pickup / destination + coordinates are restored synchronously
+  // from localStorage, but the ride status / ride object are not
+  // enough: a captain may have accepted the ride WHILE the rider
+  // was refreshing. So on mount we ask the backend for the rider's
+  // freshest active ride and re-sync every ride screen. If the stored
+  // ride no longer exists (cancelled / completed / stale), we clear
+  // all traces of the old trip so the page starts clean.
+
+  useEffect(() => {
+ 
+    // Only relevant when a ride was persisted from a previous page
+    // load; otherwise there is nothing to re-validate.
+
+    if (!ride) {
+      return;
+    }
+ 
+    let active = true;
+ 
+    const restoreActiveRide =
+      async () => {
+ 
+        try {
+ 
+          const token =
+            localStorage.getItem(
+              "user"
+            );
+ 
+          if (!token) {
+            return;
+          }
+ 
+          const response =
+            await api.get(
+              "/api/riders/active-ride",
+              {
+                headers: {
+                  Authorization:
+                    `Bearer ${token}`,
+                },
+              }
+            );
+ 
+          if (!active) {
+            return;
+          }
+ 
+          const activeRide =
+            response.data?.data;
+ 
+          if (activeRide) {
+ 
+            // The backend still has an in-progress ride - restore the
+            // exact screen the rider saw before refreshing(and keep
+            // listening for "ride-accepted" via the reconnected socket).
+ 
+            const restoredRide = {
+              ...activeRide,
+              rideId:
+                activeRide._id?.toString() ||
+                activeRide.rideId,
+            };
+ 
+            setRide(restoredRide);
+            setRideStatus(activeRide.status);
+            setRideOtp(activeRide.otp || "");
+ 
+            // An in-progress ride means the rider HAD chosen a destination
+            // in a previous page load - allow the fare / route to be
+            // recomputed so the refreshed map shows the same route polyline.
+
+            hasUserChosenDestination.current = true;
+ 
+            if (
+              pickupCoordinates &&
+              destinationCoordinates
+            ) {
+              getDistanceTime();
+            }
+ 
+          } else {
+ 
+            // Stored ride is gone (cancelled / completed / stale) -
+            // wipe every trace of the old trip.
+ 
+            resetAllRideState();
+          }
+ 
+        } catch (error) {
+ 
+          if (active) {
+            console.error(
+              "Restore active ride failed:",
+              error.response?.data || error
+            );
+          }
+        }
+      };
+ 
+    restoreActiveRide();
+ 
+    return () => {
+      active = false;
+    };
+ 
+  }, []);
+ 
   // ============================================================
   // HANDLE PICKUP FOCUS
   // ============================================================
@@ -2182,6 +2487,29 @@ const Home = () => {
           <p className="text-sm mt-1">
             Your ride request has been sent to nearby captains.
           </p>
+
+          <button
+            type="button"
+            onClick={handleCancelRide}
+            disabled={rideCancelling}
+            className="
+              mt-3
+              bg-white
+              text-red-600
+              px-3
+              py-1.5
+              rounded-lg
+              text-sm
+              font-bold
+              hover:bg-gray-100
+              disabled:opacity-50
+              disabled:cursor-not-allowed
+            "
+          >
+            {rideCancelling
+              ? "Cancelling..."
+              : "Cancel Ride"}
+          </button>
 
         </div>
       )}
@@ -2431,6 +2759,28 @@ const Home = () => {
               </p>
 
             </div>
+
+            <button
+              type="button"
+              onClick={handleCancelRide}
+              disabled={rideCancelling}
+              className="
+                mt-4
+                w-full
+                bg-red-500
+                text-white
+                py-3
+                rounded-xl
+                font-semibold
+                hover:bg-red-600
+                disabled:opacity-50
+                disabled:cursor-not-allowed
+              "
+            >
+              {rideCancelling
+                ? "Cancelling..."
+                : "Cancel Ride"}
+            </button>
 
           </div>
 

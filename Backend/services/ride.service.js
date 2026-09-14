@@ -165,6 +165,73 @@ exports.verifyOTP = async ({
 };
 
 // ==================================================
+// GET ACTIVE RIDE FOR A RIDER
+// ==================================================
+
+exports.getActiveRideForUser = async (userId) => {
+  // Finds the rider's most recent ride that is still in progress.
+  // "requested" is included so a page refresh can restore the
+  // "Searching for Captain" state and keep listening for captains.
+  // A stale abandoned ride (older than 6 hours and never
+  // completed / cancelled) is ignored - same defensive rule as
+  // the captain's active-ride endpoint.
+
+  return Ride.findOne({
+    user: userId,
+    status: {
+      $in: [
+        "requested",
+        "accepted",
+        "arrived",
+        "ongoing",
+      ],
+    },
+    createdAt: {
+      $gte: new Date(
+        Date.now() - 6 * 60 * 60 * 1000
+      ),
+    },
+  }).sort({ createdAt: -1 });
+};
+
+// ==================================================
+// CANCEL RIDE  (RIDER)
+// ==================================================
+
+exports.cancelRide = async (
+  rideId,
+  userId
+) => {
+  // Atomically cancel only a ride that is still "requested".
+  // Once a captain has accepted (or the ride was already
+  // cancelled / completed), cancellation is rejected.
+
+  const ride = await Ride.findOneAndUpdate(
+    {
+      _id: rideId,
+      user: userId,
+      status: "requested",
+    },
+    {
+      $set: {
+        status: "cancelled",
+      },
+    },
+    {
+      returnDocument: "after",
+    }
+  );
+
+  if (!ride) {
+    throw new Error(
+      "Ride is no longer available or has already been accepted."
+    );
+  }
+
+  return ride;
+};
+
+// ==================================================
 // COMPLETE RIDE
 // ==================================================
 

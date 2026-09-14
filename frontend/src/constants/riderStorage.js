@@ -15,6 +15,10 @@ export const RIDER_STORAGE_KEYS = {
   destination: "uber_destination",
   pickupCoordinates: "uber_pickup_coordinates",
   destinationCoordinates: "uber_destination_coordinates",
+  ride: "uber_ride",
+  rideStatus: "uber_ride_status",
+  rideOtp: "uber_ride_otp",
+  selectedVehicle: "uber_selected_vehicle",
 };
 
 export const RIDER_RIDE_STATE_KEYS =

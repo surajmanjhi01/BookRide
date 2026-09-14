@@ -15,6 +15,18 @@ router.post(
   rideController.createRide
 );
 
+router.get(
+  "/active-ride",
+  authMiddleware.authUser,
+  rideController.getRiderActiveRide
+);
+
+router.patch(
+  "/:rideId/cancel",
+  authMiddleware.authUser,
+  rideController.cancelRide
+);
+
 router.patch(
   "/:rideId/accept",
   authMiddleware.authCaptain,

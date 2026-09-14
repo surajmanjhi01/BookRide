@@ -342,6 +342,71 @@ const CaptainHome = () => {
     };
 
     // ==================================================
+    // RIDE CANCELLED BY RIDER
+    // ==================================================
+
+    const handleRideCancelled = (
+      data
+    ) => {
+
+      const rideId =
+        data?.rideId;
+
+      if (!rideId) {
+        return;
+      }
+
+      console.log(
+        "Ride cancelled by the rider:",
+        rideId
+      );
+
+      // Remove the now-invalid request card (if shown) so the
+      // captain does not try to accept a cancelled ride.
+
+      setRideRequests(
+        (prevRequests) =>
+          prevRequests.filter(
+            (request) =>
+              request.rideId !== rideId
+          )
+      );
+    };
+
+    // ==================================================
+    // RIDE ACCEPTED BY ANOTHER CAPTAIN
+    // ==================================================
+
+    const handleRideAccepted = (
+      data
+    ) => {
+
+      const rideId =
+        data?.rideId;
+
+      if (!rideId) {
+        return;
+      }
+
+      console.log(
+        "Ride accepted by another captain:",
+        rideId
+      );
+
+      // Remove the taken ride from the pending list so this
+      // captain does not try to accept a ride that another
+      // captain has already picked up.
+
+      setRideRequests(
+        (prevRequests) =>
+          prevRequests.filter(
+            (request) =>
+              request.rideId !== rideId
+          )
+      );
+    };
+
+    // ==================================================
     // REGISTER SOCKET LISTENERS
     // ==================================================
 
@@ -363,6 +428,16 @@ const CaptainHome = () => {
     socket.on(
       "new-ride-request",
       handleNewRideRequest
+    );
+
+    socket.on(
+      "ride-cancelled",
+      handleRideCancelled
+    );
+
+    socket.on(
+      "ride-accepted",
+      handleRideAccepted
     );
 
     // ==================================================
@@ -413,6 +488,16 @@ const CaptainHome = () => {
       socket.off(
         "new-ride-request",
         handleNewRideRequest
+      );
+
+      socket.off(
+        "ride-cancelled",
+        handleRideCancelled
+      );
+
+      socket.off(
+        "ride-accepted",
+        handleRideAccepted
       );
 
       console.log(
@@ -737,6 +822,38 @@ const CaptainHome = () => {
         setIsOnline(
           newStatus === "active"
         );
+
+        // ---------------------------------------------
+        // Sync the socket connection with online state
+        // ---------------------------------------------
+        // An offline captain does not need a live socket.
+        // Disconnecting immediately removes them from the
+        // backend socket map, so they never appear as
+        // "online" on the rider map. Going back online
+        // reconnects and re-registers via "join-captain".
+        // ---------------------------------------------
+
+        if (
+          newStatus === "inactive" &&
+          socket.connected
+        ) {
+
+          console.log(
+            "🔌 Captain going offline — disconnecting socket"
+          );
+
+          socket.disconnect();
+        } else if (
+          newStatus === "active" &&
+          !socket.connected
+        ) {
+
+          console.log(
+            "🔌 Captain going online — reconnecting socket"
+          );
+
+          socket.connect();
+        }
 
         // ---------------------------------------------
         // Clear ride requests when offline

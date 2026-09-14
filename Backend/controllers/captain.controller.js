@@ -319,10 +319,67 @@ exports.getNearbyCaptains = async (req, res) => {
       Number(lat)
     );
 
+    // ==================================================
+    // KEEP ONLY CAPTAINS WITH A LIVE SOCKET
+    // ==================================================
+    //
+    // The DB "status/socketId" fields can go stale (e.g. a
+    // server restart leaves old socket IDs behind while the
+    // in-memory socket map is empty). Trust those fields for
+    // the first filter, but ONLY show captains whose socket
+    // is actually connected to this server right now. This
+    // prevents "ghost" captains — users that are no longer
+    // online — from appearing on the rider map.
+
+    const io =
+      req.app.get("io");
+
+    const captainSockets =
+      req.app.get("captainSockets");
+
+    const onlineCaptains =
+      captains.filter(
+      (captain) => {
+        const captainId =
+          captain._id.toString();
+
+        let socketId =
+          captainSockets?.get(
+            captainId
+          );
+
+        // Fallback: the in-memory map can be momentarily
+        // missing an entry (e.g. right after the server
+        // started / hot-reload) even though the captain's
+        // socket is still a live connection — recover via
+        // the DB socketId IF that socket exists here.
+        if (
+          !socketId &&
+          captain.socketId
+        ) {
+          const liveSocket =
+            io?.sockets?.sockets?.get(
+              captain.socketId
+            );
+
+          if (liveSocket) {
+            socketId =
+              captain.socketId;
+          }
+        }
+
+        return Boolean(socketId);
+      }
+    );
+
+    console.log(
+      `🚕 ${onlineCaptains.length}/${captains.length} nearby captain(s) with a live socket`
+    );
+
     return res.status(200).json({
       success: true,
-      count: captains.length,
-      data: captains,
+      count: onlineCaptains.length,
+      data: onlineCaptains,
     });
   } catch (error) {
     console.error("Nearby Captain Error:", error);
