@@ -7,6 +7,7 @@ import React, {
 import api from "../services/axios";
 import socket from "../services/socket";
 import MapView from "../components/MapView";
+import toast from "react-hot-toast";
 
 const CaptainHome = () => {
   // ==================================================
@@ -772,7 +773,7 @@ const CaptainHome = () => {
             "⚠️ Cannot go offline while on a trip"
           );
 
-          alert(
+          toast.error(
             "You cannot go offline while on an active trip. Complete the ride first."
           );
 
@@ -868,6 +869,8 @@ const CaptainHome = () => {
           setRideRequests([]);
         }
 
+        toast.success(newStatus === "active" ? "You are now online." : "You are now offline.");
+
       } catch (error) {
 
         console.error(
@@ -875,6 +878,8 @@ const CaptainHome = () => {
           error.response?.data ||
             error
         );
+
+        toast.error(error.response?.data?.message || "Unable to update your status.");
 
       } finally {
 
@@ -908,7 +913,7 @@ const CaptainHome = () => {
         longitude > 180
       ) {
 
-        alert(
+        toast.error(
           "Enter a valid latitude (-90 to 90) and longitude (-180 to 180)."
         );
 
@@ -922,7 +927,7 @@ const CaptainHome = () => {
 
       if (!token) {
 
-        alert(
+        toast.error(
           "Captain token not found. Please login again."
         );
 
@@ -962,7 +967,7 @@ const CaptainHome = () => {
 
         setGpsError(null);
 
-        alert(
+        toast.success(
           "Manual location saved. You will now receive ride requests near this location."
         );
 
@@ -974,7 +979,7 @@ const CaptainHome = () => {
             error
         );
 
-        alert(
+        toast.error(
           error.response?.data?.message ||
             "Failed to save manual location"
         );

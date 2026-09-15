@@ -6,6 +6,7 @@ import { UserDataContext } from "../context/userContext.jsx";
 import { clearRiderRideState } from "../constants/riderStorage";
 import axios from "axios";
 import API_BASE_URL from "../config";
+import toast from "react-hot-toast";
 
 const UserLogin = () => {
     const [email, setEmail] = useState("");
@@ -23,19 +24,26 @@ const UserLogin = () => {
         email:email,
         password:password
        }
-      const response=await axios.post(`${API_BASE_URL}/api/users/login`,UserData)
-      if(response.status===200){
-        const data=response.data 
-        console.log(data.user)
-        setUser(data.user);
-        localStorage.setItem('user', data.token);
-        // Always start a brand-new session from a fresh home page —
-        // never restore the previous session's pickup / destination.
-        clearRiderRideState();
-        navigate('/home');
-      }
+      try {
+        const response=await axios.post(`${API_BASE_URL}/api/users/login`,UserData)
+        if(response.status===200){
+          const data=response.data 
+          console.log(data.user)
+          setUser(data.user);
+          localStorage.setItem('user', data.token);
+          clearRiderRideState();
+          toast.success("Welcome back!");
+          navigate('/home');
+        }
+      } catch (error) {
+        const message = error.response?.status === 400
+          ? "Invalid email or password."
+          : "Unable to sign in. Please try again.";
+        toast.error(message);
+      } finally {
         setEmail('');
         setPassword('');
+      }
     }
   return (
     <div className="h-screen flex flex-col justify-between bg-white">

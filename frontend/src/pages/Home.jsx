@@ -15,6 +15,7 @@ import { RIDER_STORAGE_KEYS } from "../constants/riderStorage";
 import gsap from "gsap";
 import { useGSAP } from "@gsap/react";
 import polyline from "@mapbox/polyline";
+import toast from "react-hot-toast";
 
 gsap.registerPlugin(useGSAP);
 
@@ -1858,7 +1859,7 @@ const Home = () => {
     async () => {
 
       if (!selectedVehicle) {
-        alert(
+        toast.error(
           "Please select a vehicle"
         );
 
@@ -1869,7 +1870,7 @@ const Home = () => {
         !pickupCoordinates ||
         !destinationCoordinates
       ) {
-        alert(
+        toast.error(
           "Pickup and destination are required"
         );
 
@@ -1881,7 +1882,7 @@ const Home = () => {
       // --------------------------------------------------------
 
       if (!socket.connected) {
-        alert(
+        toast.error(
           "Rider socket is not connected. Please wait a moment and try again."
         );
 
@@ -1900,7 +1901,7 @@ const Home = () => {
           );
 
         if (!token) {
-          alert(
+          toast.error(
             "Authentication token not found"
           );
 
@@ -2062,6 +2063,8 @@ const Home = () => {
           setRideOtp(
             createdRide.otp || ""
           );
+
+          toast.success("Ride requested. Looking for a nearby captain...");
         }
 
         // Reset loading so the confirm button / UI
@@ -2078,7 +2081,7 @@ const Home = () => {
 
         setRideLoading(false);
 
-        alert(
+        toast.error(
           error.response?.data?.message ||
           "Failed to create ride"
         );
@@ -2133,7 +2136,7 @@ const Home = () => {
         ride?.rideId;
  
       if (!rideId) {
-        alert(
+        toast.error(
           "Ride ID not found. Please refresh the page."
         );
  
@@ -2158,7 +2161,7 @@ const Home = () => {
           );
  
         if (!token) {
-          alert(
+          toast.error(
             "Authentication token not found"
           );
  
@@ -2190,6 +2193,8 @@ const Home = () => {
         console.log(
           "Ride cancelled successfully",
         );
+
+        toast.success("Ride cancelled.");
  
       } catch (error) {
  
@@ -2198,7 +2203,7 @@ const Home = () => {
           error.response?.data || error
         );
  
-        alert(
+        toast.error(
           error.response?.data?.message ||
           "Failed to cancel ride. Please try again."
         );

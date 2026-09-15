@@ -4,6 +4,7 @@ import axios from "axios";
 import {UserDataContext} from "../context/userContext";
 import { clearRiderRideState } from "../constants/riderStorage";
 import API_BASE_URL from "../config";
+import toast from "react-hot-toast";
 
 const UserSignup = () => {
   const [userData, setUserData] = useState({
@@ -27,16 +28,22 @@ const {user,setUser}=React.useContext(UserDataContext)
       email: "",
       password: "",
     });
-     const response=await axios.post(`${API_BASE_URL}/api/users/register`,newUser)
-     if(response.status===201){
+    try {
+      const response=await axios.post(`${API_BASE_URL}/api/users/register`,newUser)
+      if(response.status===201){
         const data=response.data
-    setUser(data.user)
-    localStorage.setItem('user', data.token);
-    // Always start a brand-new session from a fresh home page —
-    // never restore the previous session's pickup / destination.
-    clearRiderRideState();
-      navigate('/home');
-     }
+        setUser(data.user)
+        localStorage.setItem('user', data.token);
+        clearRiderRideState();
+        toast.success("Account created successfully!");
+        navigate('/home');
+      }
+    } catch (error) {
+      const message = error.response?.status === 400
+        ? "This email is already registered or the details are invalid."
+        : "Unable to create your account. Please try again.";
+      toast.error(message);
+    }
   };
 
   return (

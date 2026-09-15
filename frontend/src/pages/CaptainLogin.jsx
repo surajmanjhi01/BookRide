@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { CaptainDataContext } from "../context/CaptainContext.jsx";
 import axios from "axios";
 import API_BASE_URL from "../config";
+import toast from "react-hot-toast";
 
 const CaptainLogin = () => {
   const [email, setEmail] = useState("");
@@ -36,10 +37,15 @@ const CaptainLogin = () => {
       setPassword("");
 
       // Navigate after successful login
+      toast.success("Welcome back, captain!");
       navigate("/captain-home");
     } catch (err) {
       console.log("Status:", err.response?.status);
       console.log("Response:", err.response?.data);
+      const message = err.response?.status === 400
+        ? "Invalid email or password."
+        : "Unable to sign in. Please try again.";
+      toast.error(message);
     }
   };
 

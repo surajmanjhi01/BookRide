@@ -6,12 +6,14 @@ import  {BrowserRouter} from 'react-router-dom'
 import UserContext from './context/userContext.jsx'
 import CaptainContext from './context/CaptainContext.jsx'
 import "maplibre-gl/dist/maplibre-gl.css";
+import { Toaster } from "react-hot-toast";
 createRoot(document.getElementById('root')).render(
   <StrictMode>
     <CaptainContext>
       <UserContext>
         <BrowserRouter>
           <App />
+          <Toaster position="top-center" toastOptions={{ duration: 3500 }} />
         </BrowserRouter>
       </UserContext>
     </CaptainContext>

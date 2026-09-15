@@ -1,4 +1,5 @@
 import React from "react";
+import toast from "react-hot-toast";
 
 const VehiclePanel = ({
   fare,
@@ -45,7 +46,7 @@ const VehiclePanel = ({
 
     // No vehicle selected
     if (!selectedVehicle) {
-      alert("Please select a vehicle first.");
+      toast.error("Please select a vehicle first.");
       return;
     }
 

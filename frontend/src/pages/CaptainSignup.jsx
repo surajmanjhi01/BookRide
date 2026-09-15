@@ -4,6 +4,7 @@ import {CaptainDataContext} from "../context/CaptainContext.jsx"
 import{useNavigate} from "react-router-dom"
 import axios from 'axios'
 import API_BASE_URL from "../config";
+import toast from "react-hot-toast";
 const CaptainSignup = () => {
   const navigate=useNavigate()
   const [captainData, setCaptainData] = useState({
@@ -42,12 +43,20 @@ const CaptainSignup = () => {
       },
     
     });
-    const response=await axios.post(`${API_BASE_URL}/api/captains/register`, captainData);
-    if (response.status === 201) {
-      const data = response.data;
-      setCaptain(data.captain);
-      localStorage.setItem('token', data.token);
-      navigate('/captain-home');
+    try {
+      const response=await axios.post(`${API_BASE_URL}/api/captains/register`, captainData);
+      if (response.status === 201) {
+        const data = response.data;
+        setCaptain(data.captain);
+        localStorage.setItem('token', data.token);
+        toast.success("Captain account created successfully!");
+        navigate('/captain-home');
+      }
+    } catch (error) {
+      const message = error.response?.status === 400
+        ? "This email is already registered or the details are invalid."
+        : "Unable to create your captain account. Please try again.";
+      toast.error(message);
     }
   };
 
