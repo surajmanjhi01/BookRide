@@ -40,8 +40,6 @@ const CaptainLogin = () => {
       toast.success("Welcome back, captain!");
       navigate("/captain-home");
     } catch (err) {
-      console.log("Status:", err.response?.status);
-      console.log("Response:", err.response?.data);
       const message = err.response?.status === 400
         ? "Invalid email or password."
         : "Unable to sign in. Please try again.";

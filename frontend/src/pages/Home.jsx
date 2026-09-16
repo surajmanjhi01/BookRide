@@ -37,11 +37,6 @@ const reverseGeocode = async (lat, lng) => {
 
     return response.data?.data?.address || null;
   } catch (error) {
-    console.error(
-      "Reverse geocode failed:",
-      error.response?.data || error
-    );
-
     return null;
   }
 };
@@ -55,11 +50,6 @@ const readStoredText = (key) => {
   try {
     return localStorage.getItem(key) || "";
   } catch (error) {
-    console.error(
-      `Failed to read ${key} from localStorage:`,
-      error
-    );
-
     return "";
   }
 };
@@ -90,11 +80,6 @@ const readStoredCoordinates = (key) => {
 
     return null;
   } catch (error) {
-    console.error(
-      `Failed to parse ${key} from localStorage:`,
-      error
-    );
-
     return null;
   }
 };
@@ -122,11 +107,6 @@ const readStoredObject = (key) => {
  
     return null;
   } catch (error) {
-    console.error(
-      `Failed to parse ${key} from localStorage:`,
-      error
-    );
- 
     return null;
   }
 };
@@ -149,10 +129,6 @@ const persistValue = (key, value) => {
       );
     }
   } catch (error) {
-    console.error(
-      `Failed to persist ${key} to localStorage:`,
-      error
-    );
   }
 };
 
@@ -383,15 +359,6 @@ const Home = () => {
     // ------------------------------------------------------------
 
     if (!token) {
-      console.error(
-        "❌ Rider token not found in localStorage"
-      );
-
-      console.log(
-        "Available localStorage keys:",
-        Object.keys(localStorage)
-      );
-
       return;
     }
 
@@ -429,29 +396,7 @@ const Home = () => {
         );
       }
 
-      console.log(
-        "================================="
-      );
-
-      console.log(
-        "👤 RIDER JWT DECODED"
-      );
-
-      console.log(
-        "Rider ID:",
-        userId
-      );
-
-      console.log(
-        "================================="
-      );
-
     } catch (error) {
-      console.error(
-        "❌ Failed to decode rider JWT:",
-        error
-      );
-
       return;
     }
 
@@ -463,61 +408,11 @@ const Home = () => {
       token,
     };
 
-    console.log(
-      "================================="
-    );
-
-    console.log(
-      "👤 RIDER SOCKET INITIALIZATION"
-    );
-
-    console.log(
-      "Rider ID:",
-      userId
-    );
-
-    console.log(
-      "Socket connected:",
-      socket.connected
-    );
-
-    console.log(
-      "Socket ID:",
-      socket.id
-    );
-
-    console.log(
-      "================================="
-    );
-
     // ==========================================================
     // SOCKET CONNECT
     // ==========================================================
 
     const handleConnect = () => {
-      console.log(
-        "================================="
-      );
-
-      console.log(
-         "RIDER SOCKET CONNECTED"
-      );
-
-      console.log(
-        "Socket ID:",
-        socket.id
-      );
-
-      console.log(
-        "Rider ID:",
-        userId
-      );
-
-      console.log(
-        "Socket connected:",
-        socket.connected
-      );
-
       setSocketConnected(true);
 
       // --------------------------------------------------------
@@ -532,23 +427,6 @@ const Home = () => {
         }
       );
 
-      console.log(
-        "📡 join-rider emitted"
-      );
-
-      console.log(
-        "User ID sent:",
-        userId.toString()
-      );
-
-      console.log(
-        "Socket ID:",
-        socket.id
-      );
-
-      console.log(
-        "================================="
-      );
     };
 
     // ==========================================================
@@ -558,28 +436,6 @@ const Home = () => {
     const handleDisconnect = (
       reason
     ) => {
-      console.log(
-        "================================="
-      );
-
-      console.log(
-        "❌ RIDER SOCKET DISCONNECTED"
-      );
-
-      console.log(
-        "Reason:",
-        reason
-      );
-
-      console.log(
-        "Socket ID:",
-        socket.id
-      );
-
-      console.log(
-        "================================="
-      );
-
       setSocketConnected(false);
     };
 
@@ -590,28 +446,6 @@ const Home = () => {
     const handleConnectError = (
       error
     ) => {
-      console.error(
-        "================================="
-      );
-
-      console.error(
-        "❌ RIDER SOCKET CONNECTION ERROR"
-      );
-
-      console.error(
-        "Message:",
-        error.message
-      );
-
-      console.error(
-        "Error:",
-        error
-      );
-
-      console.error(
-        "================================="
-      );
-
       setSocketConnected(false);
     };
 
@@ -622,33 +456,6 @@ const Home = () => {
     const handleRideAccepted = (
       data
     ) => {
-      console.log(
-        "================================="
-      );
-
-      console.log(
-        "🚕 RIDE ACCEPTED BY CAPTAIN"
-      );
-
-      console.log(
-        "Rider ID:",
-        userId
-      );
-
-      console.log(
-        "Socket ID:",
-        socket.id
-      );
-
-      console.log(
-        "Ride accepted data:",
-        data
-      );
-
-      console.log(
-        "================================="
-      );
-
       // --------------------------------------------------------
       // Backend sends:
       //
@@ -689,14 +496,6 @@ const Home = () => {
 
       setRideLoading(false);
 
-      console.log(
-        "✅ Rider UI updated with accepted ride"
-      );
-
-      console.log(
-        "Accepted Ride:",
-        acceptedRide
-      );
     };
     
     // ==========================================================
@@ -706,23 +505,6 @@ const Home = () => {
     const handleCaptainArrived = (
       data
     ) => {
-      console.log(
-        "================================="
-      );
-
-      console.log(
-        "📍 CAPTAIN ARRIVED"
-      );
-
-      console.log(
-        "Captain arrived data:",
-        data
-      );
-
-      console.log(
-        "================================="
-      );
-
       setRideStatus(
         data?.status ||
         "arrived"
@@ -741,23 +523,6 @@ const Home = () => {
     const handleRideStarted = (
       data
     ) => {
-      console.log(
-        "================================="
-      );
-
-      console.log(
-        "🚀 RIDE STARTED"
-      );
-
-      console.log(
-        "Ride started data:",
-        data
-      );
-
-      console.log(
-        "================================="
-      );
-
       setRideStatus(
         data?.status ||
         "ongoing"
@@ -776,19 +541,10 @@ const Home = () => {
     const handleCaptainLocation = (
       data
     ) => {
-      console.log(
-        "📍 Captain location received:",
-        data
-      );
-
       if (
         data?.latitude === undefined ||
         data?.longitude === undefined
       ) {
-        console.log(
-          "⚠️ Invalid captain location received"
-        );
-
         return;
       }
 
@@ -802,10 +558,6 @@ const Home = () => {
         Number.isNaN(latitude) ||
         Number.isNaN(longitude)
       ) {
-        console.log(
-          "⚠️ Captain coordinates are not numbers"
-        );
-
         return;
       }
 
@@ -814,13 +566,6 @@ const Home = () => {
         longitude,
       });
 
-      console.log(
-        "✅ Captain location updated:",
-        {
-          latitude,
-          longitude,
-        }
-      );
     };
 
     // ==========================================================
@@ -830,23 +575,6 @@ const Home = () => {
     const handleRideCompleted = (
       data
     ) => {
-      console.log(
-        "================================="
-      );
-
-      console.log(
-        "🏁 RIDE COMPLETED"
-      );
-
-      console.log(
-        "Ride completed data:",
-        data
-      );
-
-      console.log(
-        "================================="
-      );
-
       // --------------------------------------------------------
       // Reset the rider UI back to the initial "Where to?" state
       // so a new trip can be booked right away.
@@ -896,11 +624,6 @@ const Home = () => {
       if (!captainId) {
         return;
       }
-
-      console.log(
-        "🚫 Captain went offline:",
-        captainId
-      );
 
       // Instantly drop the marker from the nearby list.
       // No need to wait for the next /api/captains/nearby poll.
@@ -982,17 +705,9 @@ const Home = () => {
     // ==========================================================
 
     if (!socket.connected) {
-      console.log(
-        "🔌 Connecting rider socket..."
-      );
-
       socket.connect();
 
     } else {
-      console.log(
-        "✅ Rider socket already connected"
-      );
-
       // --------------------------------------------------------
       // If socket was already connected,
       // register rider immediately
@@ -1006,10 +721,6 @@ const Home = () => {
     // ==========================================================
 
     return () => {
-      console.log(
-        "🧹 Cleaning rider socket listeners"
-      );
-
       socket.off(
         "connect",
         handleConnect
@@ -1126,19 +837,10 @@ const Home = () => {
 
           if (!active) return;
 
-          console.log(
-            "🚕 Nearby captains:",
-            response.data
-          );
-
           setNearbyCaptains(response.data?.data || []);
         } catch (error) {
 
           if (active && !controller.signal.aborted) {
-            console.error(
-              "❌ Failed to fetch nearby captains:",
-              error.response?.data || error
-            );
           }
         }
       };
@@ -1293,11 +995,6 @@ const Home = () => {
         );
 
       } catch (error) {
-        console.error(
-          "❌ Pickup search failed:",
-          error.response?.data ||
-          error
-        );
       }
     };
 
@@ -1338,11 +1035,6 @@ const Home = () => {
         );
 
       } catch (error) {
-        console.error(
-          "❌ Destination search failed:",
-          error.response?.data ||
-          error
-        );
       }
     };
 
@@ -1352,11 +1044,6 @@ const Home = () => {
 
   const handleLocationSelect =
     (place) => {
-
-      console.log(
-        "📍 Selected Place:",
-        place
-      );
 
       if (
         activeField ===
@@ -1425,18 +1112,10 @@ const Home = () => {
     // it with the browser's automatic GPS position — the user
     // explicitly chose that pickup before refreshing.
     if (pickupCoordinates) {
-      console.log(
-        "📍 Pickup restored from storage — skipping auto GPS pickup."
-      );
-
       return;
     }
 
     if (!navigator.geolocation) {
-      console.warn(
-        "⚠️ Geolocation is not supported by this browser."
-      );
-
       return;
     }
 
@@ -1472,18 +1151,10 @@ const Home = () => {
 
           setPickup(address || "Current location");
         } catch (error) {
-          console.error(
-            "❌ Auto-detect location error:",
-            error
-          );
         }
       },
 
       (error) => {
-        console.warn(
-          "⚠️ Geolocation permission denied or failed:",
-          error?.message || error
-        );
       }
     );
   }, [pickupCoordinates]);
@@ -1610,10 +1281,6 @@ const Home = () => {
     () => {
 
       if (!navigator.geolocation) {
-        console.warn(
-          "⚠️ Geolocation is not supported by this browser."
-        );
-
         return;
       }
 
@@ -1664,10 +1331,6 @@ const Home = () => {
         },
 
         (error) => {
-          console.warn(
-            "⚠️ Geolocation failed:",
-            error?.message || error
-          );
         }
       );
     };
@@ -1735,11 +1398,6 @@ const Home = () => {
             }
           );
 
-        console.log(
-          "Distance Response:",
-          response.data
-        );
-
         const data =
           response.data.data;
 
@@ -1784,12 +1442,6 @@ const Home = () => {
         await getFare();
 
       } catch (error) {
-
-        console.error(
-          "❌ Distance request failed:",
-          error.response?.data ||
-          error
-        );
       }
     };
 
@@ -1832,22 +1484,11 @@ const Home = () => {
             }
           );
 
-        console.log(
-          "Fare Response:",
-          response.data
-        );
-
         setFare(
           response.data.data.fare
         );
 
       } catch (error) {
-
-        console.error(
-          "❌ Fare request failed:",
-          error.response?.data ||
-          error
-        );
       }
     };
 
@@ -1884,10 +1525,6 @@ const Home = () => {
       if (!socket.connected) {
         toast.error(
           "Rider socket is not connected. Please wait a moment and try again."
-        );
-
-        console.error(
-          "❌ Cannot create ride: rider socket disconnected"
         );
 
         return;
@@ -1927,46 +1564,9 @@ const Home = () => {
               atob(base64Payload)
             );
 
-          console.log(
-            "================================="
-          );
-
-          console.log(
-            "🚕 CREATING RIDE"
-          );
-
-          console.log(
-            "Rider ID:",
-            payload.id
-          );
-
-          console.log(
-            "Socket ID:",
-            socket.id
-          );
-
-          console.log(
-            "Socket connected:",
-            socket.connected
-          );
-
-          console.log(
-            "Selected vehicle:",
-            selectedVehicle
-          );
-
-          console.log(
-            "================================="
-          );
-
         } catch (
           decodeError
         ) {
-
-          console.error(
-            "❌ JWT decode error:",
-            decodeError
-          );
         }
 
         setRideLoading(true);
@@ -2023,23 +1623,6 @@ const Home = () => {
             }
           );
 
-        console.log(
-          "================================="
-        );
-
-        console.log(
-          "✅ RIDE CREATED"
-        );
-
-        console.log(
-          "Ride Response:",
-          response.data
-        );
-
-        console.log(
-          "================================="
-        );
-
         // ------------------------------------------------------
         // Store created ride
         // ------------------------------------------------------
@@ -2072,13 +1655,6 @@ const Home = () => {
         setRideLoading(false);
 
       } catch (error) {
-
-        console.error(
-          "❌ Create Ride Error:",
-          error.response?.data ||
-          error
-        );
-
         setRideLoading(false);
 
         toast.error(
@@ -2190,19 +1766,9 @@ const Home = () => {
 
         hasUserChosenDestination.current = true;
  
-        console.log(
-          "Ride cancelled successfully",
-        );
-
         toast.success("Ride cancelled.");
  
       } catch (error) {
- 
-        console.error(
-          "Cancel Ride Error:",
-          error.response?.data || error
-        );
- 
         toast.error(
           error.response?.data?.message ||
           "Failed to cancel ride. Please try again."
@@ -2346,13 +1912,6 @@ const Home = () => {
           }
  
         } catch (error) {
- 
-          if (active) {
-            console.error(
-              "Restore active ride failed:",
-              error.response?.data || error
-            );
-          }
         }
       };
  

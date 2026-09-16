@@ -28,7 +28,6 @@ const UserLogin = () => {
         const response=await axios.post(`${API_BASE_URL}/api/users/login`,UserData)
         if(response.status===200){
           const data=response.data 
-          console.log(data.user)
           setUser(data.user);
           localStorage.setItem('user', data.token);
           clearRiderRideState();

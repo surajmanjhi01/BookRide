@@ -39,21 +39,11 @@ const VehiclePanel = ({
   // ==========================================
 
   const handleConfirmRide = () => {
-    console.log("=================================");
-    console.log("🚕 CONFIRM RIDE CLICKED");
-    console.log("Selected vehicle:", selectedVehicle);
-    console.log("=================================");
-
     // No vehicle selected
     if (!selectedVehicle) {
       toast.error("Please select a vehicle first.");
       return;
     }
-
-    console.log(
-      "✅ Calling createRide() for:",
-      selectedVehicle
-    );
 
     createRide();
   };
