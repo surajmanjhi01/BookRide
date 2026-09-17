@@ -10,8 +10,7 @@ This project is divided into two main applications:
 - Backend: Node.js + Express app with MongoDB and Socket.IO
 
 The system supports:
-
-- User registration and login
+- User registration and login,
 - Captain registration and login
 - Captain online/offline status management
 - User ride requests with pickup and destination
