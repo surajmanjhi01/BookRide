@@ -56,13 +56,13 @@ io.use(async (socket, next) => {
       socket.authenticatedRole = "captain";
     } else {
       console.log(
-        `❌ Socket authentication rejected: account ${decoded.id} not found`
+        `❌ Socket authentication rejected: account ${decoded.id} not found`,
       );
       return next(new Error("Socket account not found"));
     }
 
     console.log(
-      `🔐 Socket authenticated: ${socket.authenticatedRole} ${socket.authenticatedId}`
+      `🔐 Socket authenticated: ${socket.authenticatedRole} ${socket.authenticatedId}`,
     );
     next();
   } catch (error) {
@@ -77,20 +77,11 @@ io.use(async (socket, next) => {
 
 app.set("io", io);
 
-app.set(
-  "captainSockets",
-  captainSockets
-);
+app.set("captainSockets", captainSockets);
 
-app.set(
-  "userSockets",
-  userSockets
-);
+app.set("userSockets", userSockets);
 
-app.set(
-  "pendingRideRequests",
-  pendingRideRequests
-);
+app.set("pendingRideRequests", pendingRideRequests);
 
 // ==================================================
 // SOCKET CONNECTION
@@ -116,7 +107,7 @@ io.on("connection", (socket) => {
 
       if (captainId && captainId.toString() !== authenticatedCaptainId) {
         console.log(
-          `⚠️ Ignoring mismatched captain ID ${captainId}; using ${authenticatedCaptainId}`
+          `⚠️ Ignoring mismatched captain ID ${captainId}; using ${authenticatedCaptainId}`,
         );
       }
 
@@ -124,16 +115,12 @@ io.on("connection", (socket) => {
       // Store socket in memory
       // ------------------------------------------
 
-      captainSockets.set(
-        authenticatedCaptainId,
-        socket.id
-      );
+      captainSockets.set(authenticatedCaptainId, socket.id);
 
-      socket.captainId =
-        authenticatedCaptainId;
+      socket.captainId = authenticatedCaptainId;
 
       console.log(
-        `🚕 Captain ${authenticatedCaptainId} connected with socket ${socket.id}`
+        `🚕 Captain ${authenticatedCaptainId} connected with socket ${socket.id}`,
       );
 
       // ------------------------------------------
@@ -148,44 +135,32 @@ io.on("connection", (socket) => {
         },
         {
           returnDocument: "after",
-        }
+        },
       );
 
       console.log(
-        `✅ Captain ${authenticatedCaptainId} socketId saved to MongoDB`
+        `✅ Captain ${authenticatedCaptainId} socketId saved to MongoDB`,
       );
 
       // ------------------------------------------
       // Deliver pending rides
       // ------------------------------------------
 
-      const pending =
-        pendingRideRequests.get(
-          authenticatedCaptainId
-        ) || [];
+      const pending = pendingRideRequests.get(authenticatedCaptainId) || [];
 
       if (pending.length > 0) {
         console.log(
-          `📦 Delivering ${pending.length} pending ride(s) to captain ${authenticatedCaptainId}`
+          `📦 Delivering ${pending.length} pending ride(s) to captain ${authenticatedCaptainId}`,
         );
 
         pending.forEach((rideData) => {
-          socket.emit(
-            "new-ride-request",
-            rideData
-          );
+          socket.emit("new-ride-request", rideData);
         });
 
-        pendingRideRequests.delete(
-          authenticatedCaptainId
-        );
+        pendingRideRequests.delete(authenticatedCaptainId);
       }
-
     } catch (error) {
-      console.error(
-        "❌ Captain socket connection error:",
-        error
-      );
+      console.error("❌ Captain socket connection error:", error);
     }
   });
 
@@ -193,70 +168,50 @@ io.on("connection", (socket) => {
   // RIDER CONNECT
   // ==================================================
 
-socket.on("join-rider", ({ userId } = {}) => {
-  if (socket.authenticatedRole !== "user") {
-    console.log("❌ Non-rider socket attempted rider registration");
-    return;
-  }
+  socket.on("join-rider", ({ userId } = {}) => {
+    if (socket.authenticatedRole !== "user") {
+      console.log("❌ Non-rider socket attempted rider registration");
+      return;
+    }
 
-  const userIdString = socket.authenticatedId;
+    const userIdString = socket.authenticatedId;
 
-  if (userId && userId.toString() !== userIdString) {
-    console.log(
-      `⚠️ Ignoring mismatched rider ID ${userId}; using ${userIdString}`
-    );
-  }
+    if (userId && userId.toString() !== userIdString) {
+      console.log(
+        `⚠️ Ignoring mismatched rider ID ${userId}; using ${userIdString}`,
+      );
+    }
 
-  userSockets.set(
-    userIdString,
-    socket.id
-  );
+    userSockets.set(userIdString, socket.id);
 
-  socket.userId = userIdString;
+    socket.userId = userIdString;
 
-  console.log("=================================");
-  console.log("👤 RIDER CONNECTED");
-  console.log("Rider ID:", userIdString);
-  console.log("Socket ID:", socket.id);
-  console.log(
-    "User socket map:",
-    [...userSockets.entries()]
-  );
-  console.log("=================================");
-});
+    console.log("=================================");
+    console.log("👤 RIDER CONNECTED");
+    console.log("Rider ID:", userIdString);
+    console.log("Socket ID:", socket.id);
+    console.log("User socket map:", [...userSockets.entries()]);
+    console.log("=================================");
+  });
 
   // ==================================================
   // CAPTAIN LOCATION
   // ==================================================
 
- socket.on(
-  "captain-location",
-  async ({
-    rideId,
-    latitude,
-    longitude,
-  }) => {
+  socket.on("captain-location", async ({ rideId, latitude, longitude }) => {
     try {
-
       // ==================================================
       // BASIC VALIDATION
       // ==================================================
 
-      if (
-        typeof latitude !== "number" ||
-        typeof longitude !== "number"
-      ) {
-        console.log(
-          "❌ Invalid captain coordinates"
-        );
+      if (typeof latitude !== "number" || typeof longitude !== "number") {
+        console.log("❌ Invalid captain coordinates");
 
         return;
       }
 
       if (!socket.captainId) {
-        console.log(
-          "❌ Captain not identified"
-        );
+        console.log("❌ Captain not identified");
 
         return;
       }
@@ -273,44 +228,33 @@ socket.on("join-rider", ({ userId } = {}) => {
       // SAVE CAPTAIN LOCATION TO MONGODB
       // ==================================================
 
-      const captain =
-        await captainModel.findByIdAndUpdate(
-          socket.captainId,
-          {
-            location: {
-              type: "Point",
-              coordinates: [
-                longitude,
-                latitude,
-              ],
-            },
+      const captain = await captainModel.findByIdAndUpdate(
+        socket.captainId,
+        {
+          location: {
+            type: "Point",
+            coordinates: [longitude, latitude],
           },
-          {
-            returnDocument: "after",
-          }
-        );
+        },
+        {
+          returnDocument: "after",
+        },
+      );
 
       if (!captain) {
-        console.log(
-          `❌ Captain ${socket.captainId} not found`
-        );
+        console.log(`❌ Captain ${socket.captainId} not found`);
 
         return;
       }
 
-      console.log(
-        "📍 Captain location saved:",
-        captain.location.coordinates
-      );
+      console.log("📍 Captain location saved:", captain.location.coordinates);
 
       // ==================================================
       // IF THERE IS NO RIDE
       // ==================================================
 
       if (!rideId) {
-        console.log(
-          "ℹ️ No active ride. Location saved only."
-        );
+        console.log("ℹ️ No active ride. Location saved only.");
 
         return;
       }
@@ -319,13 +263,10 @@ socket.on("join-rider", ({ userId } = {}) => {
       // FIND RIDE
       // ==================================================
 
-      const ride =
-        await Ride.findById(rideId);
+      const ride = await Ride.findById(rideId);
 
       if (!ride) {
-        console.log(
-          `❌ Ride ${rideId} not found`
-        );
+        console.log(`❌ Ride ${rideId} not found`);
 
         return;
       }
@@ -334,13 +275,9 @@ socket.on("join-rider", ({ userId } = {}) => {
       // SECURITY CHECK
       // ==================================================
 
-      if (
-        !ride.captain ||
-        ride.captain.toString() !==
-          socket.captainId
-      ) {
+      if (!ride.captain || ride.captain.toString() !== socket.captainId) {
         console.log(
-          `❌ Captain ${socket.captainId} is not assigned to ride ${rideId}`
+          `❌ Captain ${socket.captainId} is not assigned to ride ${rideId}`,
         );
 
         return;
@@ -351,61 +288,37 @@ socket.on("join-rider", ({ userId } = {}) => {
       // ==================================================
 
       if (!ride.user) {
-        console.log(
-          `❌ Ride ${rideId} has no rider`
-        );
+        console.log(`❌ Ride ${rideId} has no rider`);
 
         return;
       }
 
-      const riderId =
-        ride.user.toString();
+      const riderId = ride.user.toString();
 
-      console.log(
-        "👤 Ride belongs to rider:",
-        riderId
-      );
+      console.log("👤 Ride belongs to rider:", riderId);
 
       // ==================================================
       // DEBUG USER SOCKET MAP
       // ==================================================
 
-      console.log(
-        "👥 Current user socket map:",
-        [...userSockets.entries()]
-      );
+      console.log("👥 Current user socket map:", [...userSockets.entries()]);
 
-      const riderSocketId =
-        userSockets.get(riderId);
+      const riderSocketId = userSockets.get(riderId);
 
-      console.log(
-        "🔎 Rider socket lookup:"
-      );
+      console.log("🔎 Rider socket lookup:");
 
-      console.log(
-        "Rider ID:",
-        riderId
-      );
+      console.log("Rider ID:", riderId);
 
-      console.log(
-        "Rider socket:",
-        riderSocketId
-      );
+      console.log("Rider socket:", riderSocketId);
 
       // ==================================================
       // RIDER NOT CONNECTED
       // ==================================================
 
       if (!riderSocketId) {
+        console.log(`⚠️ Rider ${riderId} has no active socket`);
 
-        console.log(
-          `⚠️ Rider ${riderId} has no active socket`
-        );
-
-        console.log(
-          "Available rider sockets:",
-          [...userSockets.entries()]
-        );
+        console.log("Available rider sockets:", [...userSockets.entries()]);
 
         return;
       }
@@ -414,51 +327,31 @@ socket.on("join-rider", ({ userId } = {}) => {
       // SEND LOCATION TO RIDER
       // ==================================================
 
-      io.to(riderSocketId).emit(
-        "captain-location",
-        {
-          rideId:
-            ride._id.toString(),
+      io.to(riderSocketId).emit("captain-location", {
+        rideId: ride._id.toString(),
 
-          captainId:
-            socket.captainId,
+        captainId: socket.captainId,
 
-          latitude,
-          longitude,
-        }
-      );
+        latitude,
+        longitude,
+      });
 
-      console.log(
-        `✅ Captain location forwarded to rider ${riderId}`
-      );
-
+      console.log(`✅ Captain location forwarded to rider ${riderId}`);
     } catch (error) {
-
-      console.error(
-        "❌ Captain location error:",
-        error
-      );
-
+      console.error("❌ Captain location error:", error);
     }
-  }
-);
-// ==================================================
-// GET NEARBY ONLINE CAPTAINS
-// ==================================================
+  });
+  // ==================================================
+  // GET NEARBY ONLINE CAPTAINS
+  // ==================================================
 
-socket.on(
-  "get-nearby-captains",
-  async ({ latitude, longitude }) => {
-
+  socket.on("get-nearby-captains", async ({ latitude, longitude }) => {
     try {
-
       // ----------------------------------------------
       // SECURITY
       // ----------------------------------------------
 
-      if (
-        socket.authenticatedRole !== "user"
-      ) {
+      if (socket.authenticatedRole !== "user") {
         return;
       }
 
@@ -466,14 +359,8 @@ socket.on(
       // VALIDATE LOCATION
       // ----------------------------------------------
 
-      if (
-        typeof latitude !== "number" ||
-        typeof longitude !== "number"
-      ) {
-
-        console.log(
-          "❌ Invalid rider coordinates"
-        );
+      if (typeof latitude !== "number" || typeof longitude !== "number") {
+        console.log("❌ Invalid rider coordinates");
 
         return;
       }
@@ -482,9 +369,8 @@ socket.on(
       // FIND NEARBY ONLINE CAPTAINS
       // ----------------------------------------------
 
-      const captains =
-        await captainModel.find({
-
+      const captains = await captainModel
+        .find({
           status: "active",
 
           socketId: {
@@ -496,102 +382,59 @@ socket.on(
               $geometry: {
                 type: "Point",
 
-                coordinates: [
-                  longitude,
-                  latitude,
-                ],
+                coordinates: [longitude, latitude],
               },
 
-              $maxDistance:
-                5000,
+              $maxDistance: 5000,
             },
           },
-
         })
-        .select(
-          "_id location status"
-        );
+        .select("_id location status");
 
       // ----------------------------------------------
       // FORMAT CAPTAINS
       // ----------------------------------------------
 
-      const nearbyCaptains =
-        captains.map(
-          (captain) => ({
+      const nearbyCaptains = captains.map((captain) => ({
+        captainId: captain._id.toString(),
 
-            captainId:
-              captain._id.toString(),
+        latitude: captain.location?.coordinates?.[1],
 
-            latitude:
-              captain.location
-                ?.coordinates?.[1],
-
-            longitude:
-              captain.location
-                ?.coordinates?.[0],
-
-          })
-        );
+        longitude: captain.location?.coordinates?.[0],
+      }));
 
       // ----------------------------------------------
       // SEND TO RIDER
       // ----------------------------------------------
 
-      socket.emit(
-        "nearby-captains",
-        nearbyCaptains
-      );
+      socket.emit("nearby-captains", nearbyCaptains);
 
-      console.log(
-        `🚕 Sent ${nearbyCaptains.length} nearby captains`
-      );
-
+      console.log(`🚕 Sent ${nearbyCaptains.length} nearby captains`);
     } catch (error) {
-
-      console.error(
-        "❌ Nearby captains error:",
-        error
-      );
-
+      console.error("❌ Nearby captains error:", error);
     }
-  }
-);
+  });
 
   // ==================================================
   // DISCONNECT
   // ==================================================
 
   socket.on("disconnect", async () => {
-
-    console.log(
-      "❌ Socket disconnected:",
-      socket.id
-    );
+    console.log("❌ Socket disconnected:", socket.id);
 
     // ------------------------------------------
     // CAPTAIN DISCONNECT
     // ------------------------------------------
 
     if (socket.captainId) {
-
-      const captainId =
-        socket.captainId.toString();
+      const captainId = socket.captainId.toString();
 
       // Only delete if this socket is still
       // the current socket for this captain
-      if (
-        captainSockets.get(captainId) ===
-        socket.id
-      ) {
+      if (captainSockets.get(captainId) === socket.id) {
+        captainSockets.delete(captainId);
 
-        captainSockets.delete(
-          captainId
-        );
-
-        console.log(
-          `Captain ${captainId} removed from socket map`
-        );
+        console.log(`Captain ${captainId} removed from socket map`);
 
         // Clear socketId from database
         await captainModel.findByIdAndUpdate(
@@ -601,12 +444,10 @@ socket.on(
           },
           {
             returnDocument: "after",
-          }
+          },
         );
 
-        console.log(
-          `Captain ${captainId} socketId cleared`
-        );
+        console.log(`Captain ${captainId} socketId cleared`);
 
         // ------------------------------------------
         // NOTIFY RIDERS — captain is no longer online
@@ -616,20 +457,13 @@ socket.on(
         // waiting for the next nearby-captains poll.
         // ------------------------------------------
 
-        userSockets.forEach(
-          (riderSocketId) => {
-            io.to(riderSocketId).emit(
-              "captain-offline",
-              {
-                captainId,
-              }
-            );
-          }
-        );
+        userSockets.forEach((riderSocketId) => {
+          io.to(riderSocketId).emit("captain-offline", {
+            captainId,
+          });
+        });
 
-        console.log(
-          `📡 captain-offline broadcast for captain ${captainId}`
-        );
+        console.log(`📡 captain-offline broadcast for captain ${captainId}`);
       }
     }
 
@@ -638,24 +472,14 @@ socket.on(
     // ------------------------------------------
 
     if (socket.userId) {
-
-      const userId =
-        socket.userId.toString();
+      const userId = socket.userId.toString();
 
       // Only remove if this is the
       // current socket
-      if (
-        userSockets.get(userId) ===
-        socket.id
-      ) {
+      if (userSockets.get(userId) === socket.id) {
+        userSockets.delete(userId);
 
-        userSockets.delete(
-          userId
-        );
-
-        console.log(
-          `Rider ${userId} removed from socket map`
-        );
+        console.log(`Rider ${userId} removed from socket map`);
       }
     }
   });
@@ -677,39 +501,33 @@ socket.on(
 // re-register their fresh socket ID via "join-captain".
 // --------------------------------------------------
 
-const clearStaleSocketIds =
-  captainModel.updateMany(
-    {
-      socketId: {
-        $ne: null,
-      },
+const clearStaleSocketIds = captainModel.updateMany(
+  {
+    socketId: {
+      $ne: null,
     },
-    {
-      $set: {
-        socketId: null,
-      },
-    }
-  );
+  },
+  {
+    $set: {
+      socketId: null,
+    },
+  },
+);
 
 clearStaleSocketIds
   .then((result) => {
     console.log(
-      `🧹 Cleared ${result.modifiedCount} stale captain socketId(s) at startup`
+      `🧹 Cleared ${result.modifiedCount} stale captain socketId(s) at startup`,
     );
   })
   .catch((error) => {
     console.error(
       "❌ Failed to clear stale captain socket IDs:",
-      error.message
+      error.message,
     );
   })
   .finally(() => {
-    server.listen(
-      PORT,
-      () => {
-        console.log(
-          `🚀 Server is running on port ${PORT}`
-        );
-      }
-    );
+    server.listen(PORT, () => {
+      console.log(`🚀 Server is running on port ${PORT}`);
+    });
   });
