@@ -5,16 +5,23 @@ import axios from "axios";
 import API_BASE_URL from "../config";
 import toast from "react-hot-toast";
 import BrandMark from "../components/BrandMark";
+import Loader from "../components/Loader";
 
 const CaptainLogin = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
 
   const navigate = useNavigate();
   const { setCaptain } = React.useContext(CaptainDataContext);
 
   const submitHandler = async (e) => {
     e.preventDefault();
+
+    // Prevent duplicate submissions while a login is in progress
+    if (isLoading) return;
+
+    setIsLoading(true);
 
     try {
       const response = await axios.post(
@@ -45,6 +52,8 @@ const CaptainLogin = () => {
         ? "Invalid email or password."
         : "Unable to sign in. Please try again.";
       toast.error(message);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -78,9 +87,16 @@ const CaptainLogin = () => {
 
           <button
             type="submit"
-            className="bg-[#111] text-white font-semibold rounded px-4 py-3 w-full mb-3"
+            disabled={isLoading}
+            className={`bg-[#111] text-white font-semibold rounded px-4 py-3 w-full mb-3 flex items-center justify-center gap-2 ${
+              isLoading ? "opacity-70 cursor-not-allowed" : ""
+            }`}
           >
-            Login as Captain
+            {isLoading ? (
+              <Loader size={18} color="#ffffff" label="Logging in..." />
+            ) : (
+              "Login as Captain"
+            )}
           </button>
 
           <p className="text-center text-sm">

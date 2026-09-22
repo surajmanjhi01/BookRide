@@ -8,10 +8,12 @@ import axios from "axios";
 import API_BASE_URL from "../config";
 import toast from "react-hot-toast";
 import BrandMark from "../components/BrandMark";
+import Loader from "../components/Loader";
 
 const UserLogin = () => {
     const [email, setEmail] = useState("");
     const[password, setPassword] = useState("");
+    const [isLoading, setIsLoading] = useState(false);
     const [userData, setUserData] = useState({
         email: "",
         password: ""
@@ -20,7 +22,12 @@ const UserLogin = () => {
     const {user,setUser}=React.useContext(UserDataContext)
     const submitHandler=async(e)=>{     
         e.preventDefault();
-       
+        
+        // Prevent duplicate submissions while a login is in progress
+        if (isLoading) return;
+        
+        setIsLoading(true);
+
        const UserData={
         email:email,
         password:password
@@ -41,6 +48,7 @@ const UserLogin = () => {
           : "Unable to sign in. Please try again.";
         toast.error(message);
       } finally {
+        setIsLoading(false);
         setEmail('');
         setPassword('');
       }
@@ -81,9 +89,17 @@ const UserLogin = () => {
           />
 
           <button
-            className="bg-black text-white font-semibold mb-3 rounded px-4 py-3 w-full"
+            type="submit"
+            disabled={isLoading}
+            className={`bg-black text-white font-semibold mb-3 rounded px-4 py-3 w-full flex items-center justify-center gap-2 ${
+              isLoading ? "opacity-70 cursor-not-allowed" : ""
+            }`}
           >
-            Login
+            {isLoading ? (
+              <Loader size={18} color="#ffffff" label="Logging in..." />
+            ) : (
+              "Login"
+            )}
           </button>
 
           <p className="text-center text-sm">
