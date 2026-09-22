@@ -5,6 +5,7 @@ import{useNavigate} from "react-router-dom"
 import axios from 'axios'
 import API_BASE_URL from "../config";
 import toast from "react-hot-toast";
+import BrandMark from "../components/BrandMark";
 const CaptainSignup = () => {
   const navigate=useNavigate()
   const [captainData, setCaptainData] = useState({
@@ -64,11 +65,7 @@ const CaptainSignup = () => {
     <div className="min-h-screen flex flex-col justify-between bg-white">
       {/* Top */}
       <div className="p-7">
-        <img
-          className="w-16 mb-8"
-          src="https://upload.wikimedia.org/wikipedia/commons/c/cc/Uber_logo_2018.png"
-          alt="Uber"
-        />
+        <BrandMark className="mb-8" />
 
         <form onSubmit={submitHandler}>
           <h3 className="text-xl font-medium mb-2">First Name</h3>
@@ -245,7 +242,7 @@ const CaptainSignup = () => {
         </Link>
 
         <p className="text-xs text-gray-500 text-center mt-5 leading-5">
-          By proceeding, you agree to Uber's Terms of Service and Privacy Policy.
+          BookRide is an independent educational/demo project and is not affiliated with Uber.
         </p>
       </div>
     </div>

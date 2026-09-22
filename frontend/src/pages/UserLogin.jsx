@@ -7,6 +7,7 @@ import { clearRiderRideState } from "../constants/riderStorage";
 import axios from "axios";
 import API_BASE_URL from "../config";
 import toast from "react-hot-toast";
+import BrandMark from "../components/BrandMark";
 
 const UserLogin = () => {
     const [email, setEmail] = useState("");
@@ -50,11 +51,7 @@ const UserLogin = () => {
       {/* Top Section */}
       <div className="p-7">
         {/* Logo */}
-        <img
-          className="w-16 mb-10"
-          src="https://upload.wikimedia.org/wikipedia/commons/c/cc/Uber_logo_2018.png"
-          alt="Uber Logo"
-        />
+        <BrandMark className="mb-10" />
 
         <form onSubmit={(e)=>submitHandler(e)}>
           <h3 className="text-xl font-medium mb-2">
@@ -110,7 +107,7 @@ const UserLogin = () => {
           Sign in as Captain
         </Link>
         <p className="text-xs text-gray-500 text-center mt-5 leading-5">
-          By proceeding, you agree to Uber's Terms of Service and Privacy Policy.
+          BookRide is an independent educational/demo project and is not affiliated with Uber.
         </p>
       </div>
     </div>

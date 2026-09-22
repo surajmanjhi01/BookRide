@@ -11,14 +11,14 @@
 // ============================================================
 
 export const RIDER_STORAGE_KEYS = {
-  pickup: "uber_pickup",
-  destination: "uber_destination",
-  pickupCoordinates: "uber_pickup_coordinates",
-  destinationCoordinates: "uber_destination_coordinates",
-  ride: "uber_ride",
-  rideStatus: "uber_ride_status",
-  rideOtp: "uber_ride_otp",
-  selectedVehicle: "uber_selected_vehicle",
+  pickup: "bookride_pickup",
+  destination: "bookride_destination",
+  pickupCoordinates: "bookride_pickup_coordinates",
+  destinationCoordinates: "bookride_destination_coordinates",
+  ride: "bookride_ride",
+  rideStatus: "bookride_ride_status",
+  rideOtp: "bookride_ride_otp",
+  selectedVehicle: "bookride_selected_vehicle",
 };
 
 export const RIDER_RIDE_STATE_KEYS =

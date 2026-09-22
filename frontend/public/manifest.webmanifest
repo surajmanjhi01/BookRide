@@ -1,7 +1,7 @@
 {
-  "name": "Uber",
-  "short_name": "Uber",
-  "description": "Request a ride and follow your trip in real time.",
+  "name": "BookRide - Ride Booking Demo",
+  "short_name": "BookRide",
+  "description": "An independent educational ride-booking demo.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

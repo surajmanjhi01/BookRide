@@ -4,6 +4,7 @@ import { CaptainDataContext } from "../context/CaptainContext.jsx";
 import axios from "axios";
 import API_BASE_URL from "../config";
 import toast from "react-hot-toast";
+import BrandMark from "../components/BrandMark";
 
 const CaptainLogin = () => {
   const [email, setEmail] = useState("");
@@ -50,11 +51,7 @@ const CaptainLogin = () => {
   return (
     <div className="h-screen flex flex-col justify-between bg-white">
       <div className="p-7">
-        <img
-          className="w-16 mb-10"
-          src="https://upload.wikimedia.org/wikipedia/commons/c/cc/Uber_logo_2018.png"
-          alt="Uber Logo"
-        />
+        <BrandMark className="mb-10" />
 
         <form onSubmit={submitHandler}>
           <h3 className="text-xl font-medium mb-2">Captain's Email</h3>
@@ -102,6 +99,9 @@ const CaptainLogin = () => {
         >
           Register as Captain
         </Link>
+        <p className="text-xs text-gray-500 text-center mt-5 leading-5">
+          BookRide is an independent educational/demo project and is not affiliated with Uber.
+        </p>
       </div>
     </div>
   );

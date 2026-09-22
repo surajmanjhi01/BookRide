@@ -1,4 +1,4 @@
-const CACHE_NAME = 'uber-shell-v1'
+const CACHE_NAME = 'bookride-shell-v2'
 const APP_SHELL = [
   '/',
   '/index.html',

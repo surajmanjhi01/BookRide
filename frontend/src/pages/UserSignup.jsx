@@ -5,6 +5,7 @@ import {UserDataContext} from "../context/userContext";
 import { clearRiderRideState } from "../constants/riderStorage";
 import API_BASE_URL from "../config";
 import toast from "react-hot-toast";
+import BrandMark from "../components/BrandMark";
 
 const UserSignup = () => {
   const [userData, setUserData] = useState({
@@ -50,12 +51,7 @@ const {user,setUser}=React.useContext(UserDataContext)
     <div className="h-screen flex flex-col justify-between bg-white">
       {/* Top Section */}
       <div className="p-7">
-        {/* Uber Logo */}
-        <img
-          className="w-16 mb-10"
-          src="https://upload.wikimedia.org/wikipedia/commons/c/cc/Uber_logo_2018.png"
-          alt="Uber Logo"
-        />
+        <BrandMark className="mb-10" />
 
         <form onSubmit={submitHandler}>
           {/* Name */}
@@ -135,8 +131,7 @@ const {user,setUser}=React.useContext(UserDataContext)
         </Link>
 
         <p className="text-xs text-center text-gray-500 mt-5 leading-5">
-          By proceeding, you agree to Uber's Terms of Use and acknowledge that
-          you have read the Privacy Policy.
+          BookRide is an independent educational/demo project and is not affiliated with Uber.
         </p>
       </div>
     </div>
