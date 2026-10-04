@@ -99,14 +99,7 @@ exports.authCaptain = async (req, res, next) => {
   }
 };
 
-// ==================================================
-// AUTH FOR BOTH RIDERS AND CAPTAINS
-// ==================================================
-//
-// Used by endpoints both roles may call, e.g.:
-//   GET /api/captains/nearby  → the rider Home fetches nearby
-//   captains around the pickup point, while the captain app
-//   may also use the same endpoint.
+
 
 exports.authUserOrCaptain = async (req, res, next) => {
   try {
